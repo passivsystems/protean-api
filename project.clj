@@ -17,15 +17,13 @@
                  [overtone/at-at "1.2.0"]
                  [yaclot "0.1.5"]
                  [me.rossputin/diskops "0.4.1"]]
-  :plugins [[lein-ring "0.9.7"]
-            [lein-expectations "0.0.8"]
+  :plugins [[lein-expectations "0.0.8"]
             [lein-codox "0.10.3"]]
-  :codox {:namespaces [;protean.core.codex.document
-                       protean.core.protocol.http
-                       ;protean.core.generation.generate
-                       ;protean.core.generation.json
-                       ;protean.core.transformation.sim
-                       ;protean.core.transformation.coerce
-                       ]}
+  :codox {:namespaces [protean.api.codex.document
+                       protean.api.protocol.http
+                       protean.api.generation.generate
+                       protean.api.generation.json
+                       protean.api.transformation.sim
+                       protean.api.transformation.coerce]}
   :aot :all
   :uberjar-name ~(str (-> "project.clj" slurp read-string (nth 1)) "-" (-> "project.clj" slurp read-string (nth 2)) "-standalone.jar"))
