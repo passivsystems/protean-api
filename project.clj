@@ -13,6 +13,7 @@
                  [com.github.fge/json-schema-validator "2.1.7"]
                  [com.taoensso/timbre "4.10.0"]
                  [environ "1.1.0"]
+                 [expectations "2.1.9"]
                  [io.aviso/pretty "0.1.33"]
                  [overtone/at-at "1.2.0"]
                  [yaclot "0.1.5"]
