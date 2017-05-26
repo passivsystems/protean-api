@@ -26,5 +26,4 @@
                        protean.api.generation.json
                        protean.api.transformation.sim
                        protean.api.transformation.coerce]}
-  :aot :all
-  :uberjar-name ~(str (-> "project.clj" slurp read-string (nth 1)) "-" (-> "project.clj" slurp read-string (nth 2)) "-standalone.jar"))
+  :aot :all)
