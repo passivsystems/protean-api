@@ -229,15 +229,13 @@
     (= accept h/txt) (str d)
     :else (c/js d))))
 
-;; TODO: rename, this is not forming a response, merely grabbing a body
-(defn rsp-body-file
+(defn file-with-path
   "Look in a directory structure 'data-path' for a file 'f-name' with given ext"
   [data-path f-name ext]
   (let [fs (file-seq (file data-path))]
     (first (filter #(= (.getName %) (str f-name ext)) fs))))
 
-;; TODO: rename, this is not forming a response, merely grabbing a body
-(defn rsp-body-state
+(defn value-with-key
   "Look in a piece of state s for a key k"
   [s k] (first (filter #(= (:id %) k) s)))
 
@@ -301,7 +299,9 @@
       true
       (log-info (s/join "," errors)))))
 
-(defmacro validate [then] `(if (valid-inputs?) ~then (respond 400)))
+(defmacro if-valid
+  ([then] `(if (valid-inputs?) ~then (respond 400)))
+  ([then else] `(if (valid-inputs?) ~then ~else)))
 
 
 ;; =============================================================================
@@ -378,7 +378,7 @@
         default-success (binding [*tree* tree *request* request *corpus* corpus]
                           (if (false? (:validating sim-cfg))
                             (success)
-                            (validate (success))))
+                            (if-valid (success))))
         response (or (some identity (map execute rules)) default-success)]
     (log-info "sim cfg : " sim-cfg)
     (if (not tree)
