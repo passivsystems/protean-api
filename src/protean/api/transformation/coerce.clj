@@ -6,7 +6,7 @@
             [clojure.data.xml :as xml]
             [cheshire.core :as jsn]
             [yaclot.core :refer [convert to-type]])
-  (:use [clojure.pprint]))
+  (:use [clojure.pprint :only [pprint]]))
 
 ;; =============================================================================
 ;; Transformation functions

@@ -10,9 +10,10 @@
   "returns only keys which are not keywords"
   [c] (seq (remove keyword? (keys c))))
 
-(defn to-seq [codices svc path method]
+(defn to-seq
   "creates a sequence (for now aka 'tree' - needs renaming) that can be
    traversed to resolve required references in scope"
+  [codices svc path method]
   [(get-in codices [svc path method])
    (get-in codices [svc path])
    (get-in codices [svc])
@@ -88,7 +89,7 @@
 
 (defn- codex-req-hdrs [tree]
   ; we don't use get-in-tree as we want to merge definitions in all scopes here
-  (into {} (merge (remove nil? (map #(get-in % [:req :headers]) tree)))))
+  (into {} (remove nil? (map #(get-in % [:req :headers]) tree))))
 
 (defn req-ctype [tree]
   (let [hdrs (codex-req-hdrs tree)
