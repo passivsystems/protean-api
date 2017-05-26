@@ -93,7 +93,7 @@
 
 (defn req-ctype [tree]
   (let [hdrs (codex-req-hdrs tree)
-        ctype (get-in hdrs h/ctype)
+        ctype (get hdrs h/ctype)
         body-schema (git tree [:req :body-schema])
         body-example (git tree [0 :req :body-examples])
         body (git tree [:req :body])
