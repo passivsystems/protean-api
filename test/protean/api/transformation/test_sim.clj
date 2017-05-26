@@ -125,3 +125,19 @@
 
 (let [rsp-1 (s/sim-rsp (req :get "/sample/simple" h/txt body nil) cdx-3 {})]
   (expect 400 (:status rsp-1)))
+
+
+;; =============================================================================
+;; Sim extension
+;; =============================================================================
+
+(def sims (clojure.main/load-script "test-data/simext-simple-error.sim.edn"))
+
+(def cdx-4 {
+  "sample" {
+    "simple" {:get [{:rsp {:200 {} :500 {}}}]}
+  }
+})
+
+(let [rsp-1 (s/sim-rsp (req :get "/sample/simple" h/txt body nil) cdx-4 sims)]
+  (expect 500 (:status rsp-1)))
