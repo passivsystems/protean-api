@@ -229,12 +229,6 @@
     (= accept h/txt) (str d)
     :else (c/js d))))
 
-(defn file-with-path
-  "Look in a directory structure 'data-path' for a file 'f-name' with given ext"
-  [data-path f-name ext]
-  (let [fs (file-seq (file data-path))]
-    (first (filter #(= (.getName %) (str f-name ext)) fs))))
-
 (defn value-with-key
   "Look in a piece of state s for a key k"
   [s k] (first (filter #(= (:id %) k) s)))
