@@ -125,3 +125,48 @@
 
 (let [rsp-1 (s/sim-rsp (req :get "/sample/simple" h/txt body nil) cdx-3 {})]
   (expect 400 (:status rsp-1)))
+
+
+;; =============================================================================
+;; Sim extension
+;; =============================================================================
+
+(def sims (clojure.main/load-script "test-data/simext-simple-error.sim.edn"))
+
+(def cdx-4 {
+  "sample" {
+    "simple" {:get [{:rsp {:200 {} :500 {}}}]}
+  }
+})
+
+(let [rsp-1 (s/sim-rsp (req :get "/sample/simple" h/txt body nil) cdx-4 sims)]
+  (expect 500 (:status rsp-1)))
+
+
+;; validating sim extension
+
+(def sim-2 (clojure.main/load-script "test-data/simext-simple-validate.sim.edn"))
+
+(def cdx-5 {
+  "sample" {
+    "simple" {
+      :get [{
+        :vars {"rp1" {:type :String :doc "A test request param"}}
+        :req {:query-params {"rp1" ["${rp1}" :required]}}
+        :rsp {:200 {}}
+      }]
+    }
+    "complex" {
+      :get [{
+        :vars {"rp1" {:type :String :doc "A test request param"}}
+        :req {:query-params {"rp1" ["${rp1}" :required]}}
+        :rsp {:200 {}}
+      }]
+    }
+  }
+  })
+
+(let [rsp-1 (s/sim-rsp (req :get "/sample/simple" h/txt body nil) cdx-5 sim-2)
+      rsp-2 (s/sim-rsp (req :get "/sample/complex" h/txt body nil) cdx-5 sim-2)]
+  (expect 400 (:status rsp-1))
+  (expect 403 (:status rsp-2)))

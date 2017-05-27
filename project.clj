@@ -17,7 +17,7 @@
                  [io.aviso/pretty "0.1.33"]
                  [overtone/at-at "1.2.0"]
                  [yaclot "0.1.5"]
-                 [me.rossputin/diskops "0.6.0"]]
+                 [me.rossputin/diskops "0.8.0"]]
   :plugins [[lein-expectations "0.0.8"]
             [lein-codox "0.10.3"]]
   :codox {:namespaces [protean.api.codex.document
