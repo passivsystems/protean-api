@@ -31,11 +31,11 @@
 (defn validate-query-params [request tree errors]
   (if-let [rpms (d/qps tree false)]
     (let [expected-qps (keys rpms)
-          received-qps (map name (keys (:params request)))]
+          received-qps (map name (keys (:query-params request)))]
       (if (every? (set received-qps) expected-qps)
         errors
         (conj errors
-          (str "expected query params " expected-qps " (was " received-qps ")"))))
+          (str "expected query params " expected-qps " (was " (s/join "," received-qps) ")"))))
     errors))
 
 (defn validate-form-params [request tree errors]

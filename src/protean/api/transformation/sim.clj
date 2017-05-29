@@ -291,7 +291,7 @@
       (validate-body *request* *tree*))]
       (if (empty? errors)
       true
-      (log-info (s/join "," errors)))))
+      (log-warn (s/join "," errors)))))
 
 (defmacro if-valid
   ([then] `(if (valid-inputs?) ~then (respond 400)))
