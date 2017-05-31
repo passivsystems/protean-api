@@ -3,6 +3,7 @@
             [clojure.set :refer [subset?]]
             [clojure.xml :as x]
             [clojure.zip :as z]
+            [clojure.data :as data]
             [cheshire.core :as jsn]
             [protean.config :as cfg]
             [protean.api.codex.document :as d]
@@ -103,19 +104,13 @@
       [(s/trim value) qlfs]))
 
 (defn- validate-ctype [expected-ctype actual-ctype]
-  (and
-    expected-ctype actual-ctype
-    (let [qlfs-optional (cfg/hdr-qlfs-optional?)
-          [expected expected-qlfs](parse-hdr expected-ctype)
-          [actual actual-qlfs] (parse-hdr actual-ctype)]
+  (when expected-ctype
+    (let [[expected expected-qlfs](parse-hdr expected-ctype)
+          [actual actual-qlfs] (parse-hdr actual-ctype)
+          fix (fn [q] (assoc q "charset" (s/upper-case (str (get q "charset")))))]
       (or
         (not (= expected actual))
-        (if qlfs-optional
-          (let [f (fn [[k v]] (= (get expected-qlfs k) v))
-                match-if-present (every? identity (map f actual-qlfs))]
-            (not match-if-present))
-          (not (= expected-qlfs actual-qlfs)))))))
-
+        (first (data/diff (fix expected-qlfs) (fix actual-qlfs)))))))
 
 (defn validate-body [payload expected-ctype schema codex-body errors]
   (if payload

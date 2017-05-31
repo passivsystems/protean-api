@@ -40,6 +40,3 @@
 
 (defn curl-flatten? []
   (to-bool (or (env :protean-curl-flatten) "on")))
-
-(defn hdr-qlfs-optional? []
-  (to-bool (or (env :hdr-qlfs-optional) "true")))
