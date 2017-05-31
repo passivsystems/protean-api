@@ -143,7 +143,7 @@
   (fn [x y] (f y x)))
 
 (defn matrix-params [mp-name]
-  (if-let [pp (path-param (str ";" mp-name))]
+  (when-let [pp (path-param (str ";" mp-name))]
     (->> pp
         ((flip s/split) #";")
         (filter seq)
@@ -229,16 +229,6 @@
     (= accept h/txt) (str d)
     :else (c/js d))))
 
-(defn value-with-key
-  "Look in a piece of state s for a key k"
-  [s k] (first (filter #(= (:id %) k) s)))
-
-(defmacro prob
-  "First arity evaluates the provided fn with specified probability.
-   Second arity evaulates first fn with provided prob else second fn."
-  ([n then] `(if (< (rand) ~n) ~then))
-  ([n then else] `(if (< (rand) ~n) ~then ~else)))
-
 (defn log [what where]
   (let [to-log [(str (java.util.Date.)) what]]
     (spit where (with-out-str (clojure.pprint/pprint to-log)) :append true)))
@@ -264,6 +254,18 @@
                             (dissoc (:headers *request*) "content-length")
                             hdrs)
                  :body body}))
+
+(defn post
+  ([url body] (post nil body))
+  ([url hdrs body] (simple-request :post url hdrs body)))
+
+(defn put
+  ([url body] (put url nil body))
+  ([url hdrs body] (simple-request :put url hdrs body)))
+
+(defn patch
+  ([url body] (patch url nil body))
+  ([url hdrs body] (simple-request :patch url hdrs body)))
 
 (defn env
   "Accesses environment variables"
@@ -292,11 +294,12 @@
       (if (empty? errors)
         true
         (log-warn (s/join "," errors)))))
-        
+
 (defmacro if-valid
   ([then] `(if (valid-inputs?) ~then (respond 400)))
   ([then else] `(if (valid-inputs?) ~then ~else)))
 
+(defmacro when-valid [then] `(when (valid-inputs?) ~then))
 
 ;; =============================================================================
 ;; Sim Execution
