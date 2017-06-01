@@ -1,5 +1,5 @@
 (ns protean.api.transformation.sim
-  "Machinery provided for running sims and powering sim extensions."
+  "API for powering sim extensions."
   (:require [clojure.string :as s]
             [cemerick.pomegranate :as pom]
             [protean.utils :as utils]
@@ -11,9 +11,8 @@
             [protean.api.transformation.validation :as v]
             [clj-http.client :as clt]
             [overtone.at-at :as at]
-            [environ.core :as ec]
-            [io.aviso.ansi :as aa])
-  (:use [taoensso.timbre :as timbre 
+            [environ.core :as ec])
+  (:use [taoensso.timbre :as timbre
      :only (debug info warn)
      :rename {debug log-debug info log-info warn log-warn}]))
 

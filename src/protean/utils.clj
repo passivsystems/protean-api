@@ -1,5 +1,5 @@
 (ns protean.utils
-  "Machinery provided for running sims and powering sim extensions."
+  "Common methods used in core and api"
   (:require [io.aviso.ansi :as aa])
   (:use [taoensso.timbre :as timbre :only (error) :rename {error log-error}]))
 

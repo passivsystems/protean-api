@@ -1,5 +1,5 @@
 (ns protean.core
-  ""
+  "Machinery provided for running sims."
   (:require [clojure.string :as s]
             [me.rossputin.diskops :as dk]
             [protean.utils :as utils]
