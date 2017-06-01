@@ -90,9 +90,7 @@
 (defn sim-rsp [{:keys [uri] :as req} paths sims]
   (let [svc (second (s/split uri #"/"))
         req-ep-raw (s/split uri (re-pattern (str "/" (name svc) "/")))
-        requested-endpoint (if (> (count req-ep-raw) 1)
-          (second req-ep-raw)
-          "/")
+        requested-endpoint (if (> (count req-ep-raw) 1) (second req-ep-raw) "/")
         endpoint (to-endpoint requested-endpoint paths svc)
         method (:request-method req)
         rules (get-in sims [svc endpoint method])
