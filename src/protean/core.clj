@@ -77,8 +77,6 @@
 ;; Sim Execution
 ;; =============================================================================
 
-(declare success)
-
 (defn- http-options [paths svc endpoint sim-cfg]
   (let [e (get-in paths [svc endpoint])
         m (map #(s/upper-case (name %)) (keys e))
