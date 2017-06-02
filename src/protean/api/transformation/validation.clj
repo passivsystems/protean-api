@@ -5,7 +5,6 @@
             [clojure.zip :as z]
             [clojure.data :as data]
             [cheshire.core :as jsn]
-            [protean.config :as cfg]
             [protean.api.codex.document :as d]
             [protean.api.protocol.http :as h]
             [protean.api.protocol.protean :as pp]
