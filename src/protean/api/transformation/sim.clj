@@ -177,12 +177,22 @@
       (if (seq error) (ph/swap error-rsp *tree* {} :gen-all true) {:status x})))
   ([] (error (Long. (name (first (rand-nth (d/error-status *tree*))))))))
 
+(defn- rsp [s hs b] {:status s :headers hs :body b})
+
 (defn respond
   ([status] {:status status})
-  ([status & {:keys [body-url]}]
-    {:status status
-     :body (qslurp body-url)
-     :headers {h/ctype (h/mime body-url)}}))
+  ([status & {:keys [body-url body headers]}]
+    (if body-url
+      (rsp status {h/ctype (h/mime body-url)} (qslurp body-url))
+      (rsp status headers body))))
+
+(defn respond-400
+  "Get a 400 error body template from either defaults.edn or our code default"
+  [detail]
+  (let [desc (or (d/get-in-tree *tree* [:errors :400 :description]) (:description (:400 (p/errors))))
+        tpl (or (d/get-in-tree *tree* [:errors :400 :template]) (:template (:400 (p/errors))))
+        body (assoc tpl desc detail)]
+    (respond 400 :headrs {h/ctype h/jsn} :body (c/js body))))
 
 (defn encode
   "Encode d using header content type information in request"
@@ -241,13 +251,13 @@
 ;; Validation of Request by Codex Specification
 ;; =============================================================================
 
-(defn- validate-body [request tree errors]
+(defn- body-errors [request tree errors]
   (let [expected-ctype (d/req-ctype tree)
         schema (d/to-path (d/get-in-tree tree [:req :body-schema]) tree)
         codex-body (d/body-req tree)]
     (v/validate-body request expected-ctype schema codex-body errors)))
 
-(defn valid-inputs?
+(defn req-errors
   "Validate request against codex specification"
   []
   (let [errors
@@ -255,13 +265,13 @@
       (v/validate-headers (d/req-hdrs *tree*) *request*)
       (v/validate-query-params *request* *tree*)
       (v/validate-form-params *request* *tree*)
-      (validate-body *request* *tree*))]
-      (if (empty? errors)
-        true
-        (log-warn (s/join "," errors)))))
+      (body-errors *request* *tree*))]
+    (when-not (empty? errors) (log-warn (s/join "," errors)))
+    errors))
 
 (defmacro if-valid
-  ([then] `(if (valid-inputs?) ~then (respond 400)))
-  ([then else] `(if (valid-inputs?) ~then ~else)))
+  ([then] `(let [errs# (req-errors)]
+             (if (empty? errs#) ~then (respond-400 (s/join " " errs#)))))
+  ([then else] `(if (empty? (req-errors)) ~then ~else)))
 
-(defmacro when-valid [then] `(when (valid-inputs?) ~then))
+(defmacro when-valid [then] `(when (empty? (req-errors)) ~then))
