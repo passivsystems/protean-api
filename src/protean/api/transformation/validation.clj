@@ -72,6 +72,7 @@
       errors)))
 
 (defn- validate-jsn-body [payload schema codex-body errors]
+  (println "!!!!!!!!!!!! ************")
   (if schema
     (let [body (:body payload)
           validation (jv/validate schema body)]
@@ -107,9 +108,16 @@
     (let [[expected expected-qlfs](parse-hdr expected-ctype)
           [actual actual-qlfs] (parse-hdr actual-ctype)
           fix (fn [q] (assoc q "charset" (s/upper-case (str (get q "charset")))))]
-      (or
+      (println "expected : " expected)
+      (println "actual : " actual)
+      (print "the or : *" (or
         (not (= expected actual))
-        (first (data/diff (fix expected-qlfs) (fix actual-qlfs)))))))
+        (first (data/diff (fix expected-qlfs) (fix actual-qlfs)))) "*")
+      ; (or
+      ;   (not (= expected actual))
+      ;   (first (data/diff (fix expected-qlfs) (fix actual-qlfs))))
+      nil
+        )))
 
 (defn validate-body [payload expected-ctype schema codex-body errors]
   (if payload
@@ -117,6 +125,7 @@
       (cond
         (validate-ctype expected-ctype ctype)
           (conj errors (str "expected content-type " expected-ctype " (was " ctype ")"))
+          ;errors
         (h/xml? ctype)
           (validate-xml-body payload schema codex-body errors)
         (h/txt? ctype)
