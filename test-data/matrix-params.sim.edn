@@ -1,0 +1,13 @@
+(ns protean.test.matrixparams
+  (:require [protean.api.transformation.coerce :as c]
+            [protean.api.transformation.sim :refer :all]))
+
+(defn test-matrix-param []
+  (let [mp (matrix-params "groupFilter")]
+    (respond 200 :headrs {"Content-Type" "application/json"} :body (c/js mp))))
+
+{
+  "gu" {
+    "groups${;groupFilter}" {:get [#(test-matrix-param)]}
+  }
+}
