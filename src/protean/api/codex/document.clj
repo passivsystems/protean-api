@@ -3,7 +3,6 @@
   (:require [clojure.java.io :as io]
             [environ.core :refer [env]]
             [me.rossputin.diskops :as dsk]
-            [protean.config :as c]
             [protean.api.protocol.http :as h]))
 
 (defn custom-keys
@@ -44,9 +43,8 @@
 
 (defn get-path-locations
   "Returns all locations that correspond to a relative path, provided a codex-dir"
-  [path codex-dir]
+  [protean-home path codex-dir]
   (let [current-dir (dsk/pwd)
-        protean-home (c/protean-home)
         locations [(str codex-dir "/" path)
                    (str current-dir "/" path)
                    (str protean-home "/" path)]]
@@ -54,9 +52,9 @@
 
 (defn to-path-dir
   "Resolves relative paths to absolute, provided a codex-dir"
-  [path codex-dir]
+  [protean-home path codex-dir]
   (if (dsk/as-relative path)
-    (let [locations (get-path-locations path codex-dir)
+    (let [locations (get-path-locations protean-home path codex-dir)
           abs-path (first (filter dsk/exists? locations))]
       (if abs-path
         abs-path
@@ -66,8 +64,8 @@
 
 (defn to-path
   "Resolves relative paths to absolute, provided a tree"
-  [path tree]
-  (to-path-dir path (get-in-tree tree [:codex-dir])))
+  [protean-home path tree]
+  (to-path-dir protean-home path (get-in-tree tree [:codex-dir])))
 
 ;; =============================================================================
 ;; Codex request

@@ -87,7 +87,7 @@
         cors-hdrs (if (false? (:cors sim-cfg)) hdrs (assoc hdrs "Access-Control-Allow-Origin" "*"))]
     [{:rsp {:200 {:headers cors-hdrs}}}]))
 
-(defn sim-rsp [{:keys [uri] :as req} paths sims]
+(defn sim-rsp [protean-home {:keys [uri] :as req} paths sims]
   (let [svc (second (s/split uri #"/"))
         req-ep-raw (s/split uri (re-pattern (str "/" (name svc) "/")))
         requested-endpoint (if (> (count req-ep-raw) 1) (second req-ep-raw) "/")
@@ -101,7 +101,10 @@
         request (sim-req req endpoint svc)
         corpus {}
         execute (execute-fn tree corpus requested-endpoint endpoint request)
-        default-success (binding [sim/*tree* tree sim/*request* request sim/*corpus* corpus]
+        default-success (binding [sim/*protean-home* protean-home
+                                  sim/*tree* tree
+                                  sim/*request* request
+                                  sim/*corpus* corpus]
                           (if (false? (:validating sim-cfg))
                             (sim/success)
                             (sim/if-valid (sim/success))))

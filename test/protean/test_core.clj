@@ -2,7 +2,10 @@
   (:require [protean.core :as core]
             [protean.api.protocol.http :as h]
             [expectations :refer :all]
-            [taoensso.timbre :as l]))
+            [taoensso.timbre :as l]
+            [me.rossputin.diskops :as dsk]))
+
+(def protean-home (dsk/pwd))
 
 (l/set-level! :warn)
 
@@ -49,14 +52,14 @@
   }
 })
 
-(let [rsp-1 (core/sim-rsp (req :get "/sample/simple" h/txt body nil) cdx-1 {})
-      rsp-2 (core/sim-rsp (req :head "/sample/simple" nil body nil) cdx-1 {})
-      rsp-3 (core/sim-rsp (req :put "/sample/simple" nil body nil) cdx-1 {})
-      rsp-4 (core/sim-rsp (req :post "/sample/simple" nil body nil) cdx-1 {})
-      rsp-5 (core/sim-rsp (req :delete "/sample/simple" nil body nil) cdx-1 {})
-      rsp-6 (core/sim-rsp (req :patch "/sample/simple" nil body nil) cdx-1 {})
-      rsp-7 (core/sim-rsp (req :get "/sample/404" nil body nil) cdx-1 {})
-      rsp-8 (core/sim-rsp (req :muppet "/sample/simple" nil body nil) cdx-1 {})]
+(let [rsp-1 (core/sim-rsp protean-home (req :get "/sample/simple" h/txt body nil) cdx-1 {})
+      rsp-2 (core/sim-rsp protean-home (req :head "/sample/simple" nil body nil) cdx-1 {})
+      rsp-3 (core/sim-rsp protean-home (req :put "/sample/simple" nil body nil) cdx-1 {})
+      rsp-4 (core/sim-rsp protean-home (req :post "/sample/simple" nil body nil) cdx-1 {})
+      rsp-5 (core/sim-rsp protean-home (req :delete "/sample/simple" nil body nil) cdx-1 {})
+      rsp-6 (core/sim-rsp protean-home (req :patch "/sample/simple" nil body nil) cdx-1 {})
+      rsp-7 (core/sim-rsp protean-home (req :get "/sample/404" nil body nil) cdx-1 {})
+      rsp-8 (core/sim-rsp protean-home (req :muppet "/sample/simple" nil body nil) cdx-1 {})]
   (expect 200 (:status rsp-1))
   (expect 200 (:status rsp-2))
   (expect 2 (count (:headers rsp-2))) ;; account for CORS headers
@@ -98,8 +101,8 @@
   }
 })
 
-(let [rsp-1 (core/sim-rsp (req :get "/sample/simple/1" h/txt body nil) cdx-2 {})
-      rsp-2 (core/sim-rsp (req :get "/sample/simple" h/txt body nil) cdx-2 {})]
+(let [rsp-1 (core/sim-rsp protean-home (req :get "/sample/simple/1" h/txt body nil) cdx-2 {})
+      rsp-2 (core/sim-rsp protean-home (req :get "/sample/simple" h/txt body nil) cdx-2 {})]
   (expect 200 (:status rsp-1))
   (expect 404 (:status rsp-2))
   (expect true (contains? (:headers rsp-2) "Protean-error")))
@@ -122,7 +125,7 @@
   }
   })
 
-(let [rsp-1 (core/sim-rsp (req :get "/sample/simple" h/txt body nil) cdx-3 {})]
+(let [rsp-1 (core/sim-rsp protean-home (req :get "/sample/simple" h/txt body nil) cdx-3 {})]
   (expect 400 (:status rsp-1)))
 
 
@@ -138,7 +141,7 @@
   }
 })
 
-(let [rsp-1 (core/sim-rsp (req :get "/sample/simple" h/txt body nil) cdx-4 sims)]
+(let [rsp-1 (core/sim-rsp protean-home (req :get "/sample/simple" h/txt body nil) cdx-4 sims)]
   (expect 500 (:status rsp-1)))
 
 
@@ -165,7 +168,7 @@
   }
   })
 
-(let [rsp-1 (core/sim-rsp (req :get "/sample/simple" h/txt body nil) cdx-5 sim-2)
-      rsp-2 (core/sim-rsp (req :get "/sample/complex" h/txt body nil) cdx-5 sim-2)]
+(let [rsp-1 (core/sim-rsp protean-home (req :get "/sample/simple" h/txt body nil) cdx-5 sim-2)
+      rsp-2 (core/sim-rsp protean-home (req :get "/sample/complex" h/txt body nil) cdx-5 sim-2)]
   (expect 400 (:status rsp-1))
   (expect 403 (:status rsp-2)))

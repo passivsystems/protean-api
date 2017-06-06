@@ -22,6 +22,7 @@
     (h/txt? ctype) s
     :else (c/pretty-js s)))
 
+(def ^:dynamic *protean-home*)
 (def ^:dynamic *tree*)
 (def ^:dynamic *request*)
 (def ^:dynamic *corpus*)
@@ -41,7 +42,7 @@
   "Quantum slurp, used to look for sim extension referenced resources in
    multiple places.
    p is a resource path (probably relative)."
-  [p] (slurp (d/to-path p *tree*)))
+  [p] (slurp (d/to-path *protean-home* p *tree*)))
 
 
 ;; =============================================================================
@@ -144,7 +145,7 @@
           headers_w_ctype (if (and body-url (not (get-in headers [h/ctype])))
                             (assoc headers h/ctype (h/mime body-url))
                             headers)
-          raw-body (if body-url (slurp (d/to-path body-url *tree*)))
+          raw-body (if body-url (slurp (d/to-path *protean-home* body-url *tree*)))
           body (if (h/txt? (get headers_w_ctype h/ctype))
                   (s/trim-newline raw-body)
                   raw-body)
@@ -241,21 +242,19 @@
 ;; Validation of Request by Codex Specification
 ;; =============================================================================
 
-(defn- validate-body [request tree errors]
+(defn- validate-body [request tree]
   (let [expected-ctype (d/req-ctype tree)
-        schema (d/to-path (d/get-in-tree tree [:req :body-schema]) tree)
+        schema (d/to-path *protean-home* (d/get-in-tree tree [:req :body-schema]) tree)
         codex-body (d/body-req tree)]
-    (v/validate-body request expected-ctype schema codex-body errors)))
+    (v/validate-body request expected-ctype schema codex-body)))
 
 (defn valid-inputs?
   "Validate request against codex specification"
   []
-  (let [errors
-    (->> []
-      (v/validate-headers (d/req-hdrs *tree*) *request*)
-      (v/validate-query-params *request* *tree*)
-      (v/validate-form-params *request* *tree*)
-      (validate-body *request* *tree*))]
+  (let [errors (conj (v/validate-headers (d/req-hdrs *tree*) *request*)
+                     (v/validate-query-params *request* *tree*)
+                     (v/validate-form-params *request* *tree*)
+                     (validate-body *request* *tree*))]
       (if (empty? errors)
         true
         (log-warn (s/join "," errors)))))
