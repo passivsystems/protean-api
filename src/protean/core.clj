@@ -5,10 +5,11 @@
             [protean.utils :as utils]
             [protean.api.codex.document :as d]
             [protean.api.codex.placeholder :as ph]
+            [protean.api.protocol.http :as http]
             [protean.api.transformation.sim :as sim])
   (:use [taoensso.timbre :as timbre
-     :only (debug info warn)
-     :rename {debug log-debug info log-info warn log-warn}]))
+     :only (debug info warn error)
+     :rename {info log-info warn log-warn error log-error}]))
 
 (defn- parse-endpoint [requested-endpoint cod-endpoint]
   ; TODO instead of requiring namedparameter to start with ';' when a matrix parameter
@@ -39,6 +40,10 @@
   [req ep svc]
   (assoc req :endpoint ep :svc svc :body (or (dk/slurp-pun (:body req)) "")))
 
+(defn- protean-error-400 [errors] {:status 400 :headers {"Protean-error" errors}})
+
+(defn- protean-error-404 [] {:status 404 :headers {"Protean-error" "Not Found"}})
+
 (defn- protean-error-405 [supported-methods]
   {:status 405
    :headers {
@@ -47,11 +52,23 @@
    }
   })
 
-(defn- protean-error-404 []
-  {:status 404 :headers {"Protean-error" "Not Found"}})
+(defn- protean-error-500 [] {:status 500 :headers {"Protean-error" "Error in sim"}})
 
-(defn- protean-error-500 []
-  {:status 500 :headers {"Protean-error" "Error in sim"}})
+(defn- format-rsp
+  [protean-home tree rsp-entry]
+  (let [status-code (Integer/parseInt (name (key rsp-entry)))
+        rsp (val rsp-entry)
+        body-url (first (:body-examples rsp))
+        headers (:headers rsp)
+        headers_w_ctype (if (and body-url (not (get-in headers [http/ctype])))
+                          (assoc headers http/ctype (http/mime body-url))
+                          headers)
+        raw-body (if body-url (slurp (d/to-path protean-home body-url tree)))
+        body (if (http/txt? (get headers_w_ctype http/ctype))
+                (s/trim-newline raw-body)
+                raw-body)
+        response {:status status-code :headers headers_w_ctype :body body}]
+    response))
 
 (defn- execute-fn
   "Prepare bindings for use through out sim execution context.
@@ -60,18 +77,22 @@
    rep is the requested endpoint
    ep is the endpoint
    req is the request"
-  [tree corpus rep ep req]
+  [protean-home tree corpus rep ep req cfg]
   (fn [rule]
-    (if (not tree) nil)
-    (try
-      (binding [sim/*tree* tree
+    (let [all (conj (into {} (d/success-status tree)) (into {} (d/error-status tree)))
+          rsp (map #(format-rsp protean-home tree %) all)]
+      (binding [sim/*protean-home* protean-home
+                sim/*tree* tree
                 sim/*request* (aug-path-params rep ep req)
                 sim/*corpus* corpus]
-        (apply rule nil))
-    (catch Exception e
-      (utils/print-error e)
-      (protean-error-500)))))
-
+        (try
+          (cond
+            rule                       (apply rule [req rsp])
+            (false? (:validating cfg)) (first rsp)
+            :else                      (if-let [errors (sim/validate req)]
+                                         (protean-error-400 errors)
+                                         (first rsp)))
+          (catch Exception e  (utils/print-error e) (protean-error-500)))))))
 
 ;; =============================================================================
 ;; Sim Execution
@@ -93,33 +114,28 @@
         requested-endpoint (if (> (count req-ep-raw) 1) (second req-ep-raw) "/")
         endpoint (to-endpoint requested-endpoint paths svc)
         method (:request-method req)
-        rules (get-in sims [svc endpoint method])
         sim-cfg (:sim-cfg sims)
         tree (if-let [x (get-in paths [svc endpoint method])]
                x
-               (when (= method :options) (http-options paths svc endpoint sim-cfg)))
-        request (sim-req req endpoint svc)
-        corpus {}
-        execute (execute-fn tree corpus requested-endpoint endpoint request)
-        default-success (binding [sim/*protean-home* protean-home
-                                  sim/*tree* tree
-                                  sim/*request* request
-                                  sim/*corpus* corpus]
-                          (if (false? (:validating sim-cfg))
-                            (sim/success)
-                            (sim/if-valid (sim/success))))
-        response (or (some identity (map execute rules)) default-success)]
-    (log-info "sim cfg : " sim-cfg)
+               (when (= method :options) (http-options paths svc endpoint sim-cfg)))]
     (if (not tree)
       (do
         (log-warn "warning - no endpoint found for" [uri method])
         (if-let [supported-methods (keys (get-in paths [svc endpoint]))]
           (protean-error-405 supported-methods)
           (protean-error-404)))
-      (do
-        (log-debug "executed" (count rules) "rules for uri:" uri "(svc:" svc "endpoint:" endpoint "method:" method ")")
-        (log-debug "responding with" response)
+      (let [rules (get-in sims [svc endpoint method])
+            request (sim-req req endpoint svc)
+            corpus {}
+            execute (execute-fn protean-home tree corpus requested-endpoint endpoint request sim-cfg)
+            response (when tree (execute rules))]
+        (log-info "sim cfg:" sim-cfg)
+        (log-info "executed" (if rules "sim extension rules" "default rules") "for uri:" uri "(svc:" svc "endpoint:" endpoint "method:" method ")")
+        (log-info "responding with" response)
         (cond
+           ;;TODO validate response structure
+           (not (map? response))    (do
+                                      (log-error "Response:" response "does not match stuture {:status Int :header Vector :body String}")
+                                      (protean-error-500))
            (false? (:cors sim-cfg)) response
-           (map? response)          (merge-with merge {:headers {"Access-Control-Allow-Origin" "*"}} response)
-           :else                    {:headers {"Access-Control-Allow-Origin" "*"} :body response})))))
+           :else                    (merge-with merge {:headers {"Access-Control-Allow-Origin" "*"}} response))))))

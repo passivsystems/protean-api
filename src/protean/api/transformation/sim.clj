@@ -16,11 +16,11 @@
      :only (debug info warn)
      :rename {debug log-debug info log-info warn log-warn}]))
 
-(defn- pretty-str [s ctype]
-  (cond
-    (h/xml? ctype) (c/pretty-xml s)
-    (h/txt? ctype) s
-    :else (c/pretty-js s)))
+; (defn- pretty-str [s ctype]
+;   (cond
+;     (h/xml? ctype) (c/pretty-xml s)
+;     (h/txt? ctype) s
+;     :else (c/pretty-js s)))
 
 (def ^:dynamic *protean-home*)
 (def ^:dynamic *tree*)
@@ -136,64 +136,64 @@
 ;; Responses
 ;; =============================================================================
 
-(defn- format-rsp [rsp-entry]
-  (if rsp-entry
-    (let [status-code (Integer/parseInt (name (key rsp-entry)))
-          rsp (val rsp-entry)
-          body-url (first (:body-examples rsp))
-          headers (:headers rsp)
-          headers_w_ctype (if (and body-url (not (get-in headers [h/ctype])))
-                            (assoc headers h/ctype (h/mime body-url))
-                            headers)
-          raw-body (if body-url (slurp (d/to-path *protean-home* body-url *tree*)))
-          body (if (h/txt? (get headers_w_ctype h/ctype))
-                  (s/trim-newline raw-body)
-                  raw-body)
-          response {:status status-code :headers headers_w_ctype :body body}]
-      (log-debug "rsp headers including inferred content type : " headers_w_ctype)
-      (log-debug "formatting rsp:" rsp)
-      (log-debug "returning :" response)
-      response)
-    (log-info "no response found to handle request")))
+; (defn- format-rsp [rsp-entry]
+;   (if rsp-entry
+;     (let [status-code (Integer/parseInt (name (key rsp-entry)))
+;           rsp (val rsp-entry)
+;           body-url (first (:body-examples rsp))
+;           headers (:headers rsp)
+;           headers_w_ctype (if (and body-url (not (get-in headers [h/ctype])))
+;                             (assoc headers h/ctype (h/mime body-url))
+;                             headers)
+;           raw-body (if body-url (slurp (d/to-path *protean-home* body-url *tree*)))
+;           body (if (h/txt? (get headers_w_ctype h/ctype))
+;                   (s/trim-newline raw-body)
+;                   raw-body)
+;           response {:status status-code :headers headers_w_ctype :body body}]
+;       (log-debug "rsp headers including inferred content type : " headers_w_ctype)
+;       (log-debug "formatting rsp:" rsp)
+;       (log-debug "returning :" response)
+;       response)
+;     (log-info "no response found to handle request")))
+;
+; (defn success
+;   "Returns a randomly selected success response as defined for endpoint"
+;   []
+;   (let [successes (d/success-status *tree*)
+;         {:keys [svc request-method uri]} *request*
+;         success (format-rsp (rand-nth successes))]
+;     (if (empty? successes)
+;       (log-warn "warning - no successes found for endpoint" [svc uri request-method])
+;       (ph/swap success *tree* {} :gen-all true))))
+;
+; (defn error
+;   "Returns a specific or randomly selected error response for an endpoint"
+;   ([x]
+;     (let [errors (d/error-status *tree*)
+;           {:keys [svc request-method uri]} *request*
+;           error (filter #(= (first %) (keyword (str x))) errors)
+;           error-rsp (format-rsp (first error))]
+;       (when (empty? errors) (log-warn "warning - no errors found for endpoint" [svc uri request-method]))
+;       (when (empty? error) (log-warn "warning - sim extension error not described in codex" [svc uri request-method]))
+;       (if (seq error) (ph/swap error-rsp *tree* {} :gen-all true) {:status x})))
+;   ([] (error (Long. (name (first (rand-nth (d/error-status *tree*))))))))
+;
+; (defn- rsp [s hs b] {:status s :headers hs :body b})
 
-(defn success
-  "Returns a randomly selected success response as defined for endpoint"
-  []
-  (let [successes (d/success-status *tree*)
-        {:keys [svc request-method uri]} *request*
-        success (format-rsp (rand-nth successes))]
-    (if (empty? successes)
-      (log-warn "warning - no successes found for endpoint" [svc uri request-method])
-      (ph/swap success *tree* {} :gen-all true))))
-
-(defn error
-  "Returns a specific or randomly selected error response for an endpoint"
-  ([x]
-    (let [errors (d/error-status *tree*)
-          {:keys [svc request-method uri]} *request*
-          error (filter #(= (first %) (keyword (str x))) errors)
-          error-rsp (format-rsp (first error))]
-      (when (empty? errors) (log-warn "warning - no errors found for endpoint" [svc uri request-method]))
-      (when (empty? error) (log-warn "warning - sim extension error not described in codex" [svc uri request-method]))
-      (if (seq error) (ph/swap error-rsp *tree* {} :gen-all true) {:status x})))
-  ([] (error (Long. (name (first (rand-nth (d/error-status *tree*))))))))
-
-(defn- rsp [s hs b] {:status s :headers hs :body b})
-
-(defn respond
-  ([status] {:status status})
-  ([status & {:keys [body-url body headers]}]
-    (if body-url
-      (rsp status {h/ctype (h/mime body-url)} (qslurp body-url))
-      (rsp status headers body))))
-
-(defn respond-400
-  "Get a 400 error body template from either defaults.edn or our code default"
-  [detail]
-  (let [desc (or (d/get-in-tree *tree* [:errors :400 :description]) (:description (:400 (p/errors))))
-        tpl (or (d/get-in-tree *tree* [:errors :400 :template]) (:template (:400 (p/errors))))
-        body (assoc tpl desc detail)]
-    (respond 400 :headrs {h/ctype h/jsn} :body (c/js body))))
+; (defn respond
+;   ([status] {:status status})
+;   ([status & {:keys [body-url body headers]}]
+;     (if body-url
+;       (rsp status {h/ctype (h/mime body-url)} (qslurp body-url))
+;       (rsp status headers body))))
+;
+; (defn respond-400
+;   "Get a 400 error body template from either defaults.edn or our code default"
+;   [detail]
+;   (let [desc (or (d/get-in-tree *tree* [:errors :400 :description]) (:description (:400 (p/errors))))
+;         tpl (or (d/get-in-tree *tree* [:errors :400 :template]) (:template (:400 (p/errors))))
+;         body (assoc tpl desc detail)]
+;     (respond 400 :headrs {h/ctype h/jsn} :body (c/js body))))
 
 (defn encode
   "Encode d using header content type information in request"
@@ -205,43 +205,43 @@
     (= accept h/txt) (str d)
     :else (c/js d))))
 
-(defn log [what where]
-  (let [to-log [(str (java.util.Date.)) what]]
-    (spit where (with-out-str (clojure.pprint/pprint to-log)) :append true)))
+; (defn log [what where]
+;   (let [to-log [(str (java.util.Date.)) what]]
+;     (spit where (with-out-str (clojure.pprint/pprint to-log)) :append true)))
 
-(defn make-request
-  "Makes an API request"
-  [method url content]
-  (let [the-request (assoc content
-                      :url url
-                      :method method
-                      :throw-exceptions false)
-        res (clt/request the-request)]
-    (log-debug "res" res)
-    (if-let [log-file (:log content)]
-      (log [(str "Response from " (:url content)) res] log-file))
-    res))
-
-(defn simple-request
-  [method url hdrs body]
-  (make-request method url
-                {:content-type (header "content-type")
-                 :headers (merge
-                            (dissoc (:headers *request*) "content-length")
-                            hdrs)
-                 :body body}))
-
-(defn post
-  ([url body] (post nil body))
-  ([url hdrs body] (simple-request :post url hdrs body)))
-
-(defn put
-  ([url body] (put url nil body))
-  ([url hdrs body] (simple-request :put url hdrs body)))
-
-(defn patch
-  ([url body] (patch url nil body))
-  ([url hdrs body] (simple-request :patch url hdrs body)))
+; (defn make-request
+;   "Makes an API request"
+;   [method url content]
+;   (let [the-request (assoc content
+;                       :url url
+;                       :method method
+;                       :throw-exceptions false)
+;         res (clt/request the-request)]
+;     (log-debug "res" res)
+;     (if-let [log-file (:log content)]
+;       (log [(str "Response from " (:url content)) res] log-file))
+;     res))
+;
+; (defn simple-request
+;   [method url hdrs body]
+;   (make-request method url
+;                 {:content-type (header "content-type")
+;                  :headers (merge
+;                             (dissoc (:headers *request*) "content-length")
+;                             hdrs)
+;                  :body body}))
+;
+; (defn post
+;   ([url body] (post nil body))
+;   ([url hdrs body] (simple-request :post url hdrs body)))
+;
+; (defn put
+;   ([url body] (put url nil body))
+;   ([url hdrs body] (simple-request :put url hdrs body)))
+;
+; (defn patch
+;   ([url body] (patch url nil body))
+;   ([url hdrs body] (simple-request :patch url hdrs body)))
 
 (defn env
   "Accesses environment variables"
@@ -258,19 +258,19 @@
         codex-body (d/body-req tree)]
     (v/validate-body request expected-ctype schema codex-body)))
 
-(defn req-errors
+(defn validate
   "Validate request against codex specification"
-  []
-  (let [errors (seq (concat (v/validate-headers (d/req-hdrs *tree*) *request*)
-                            (v/validate-query-params *request* *tree*)
-                            (v/validate-form-params *request* *tree*)
-                            (body-errors *request* *tree*)))]
+  [request]
+  (let [errors (seq (concat (v/validate-headers (d/req-hdrs *tree*) request)
+                            (v/validate-query-params request *tree*)
+                            (v/validate-form-params request *tree*)
+                            (body-errors request *tree*)))]
     (when errors (log-warn (s/join "," errors)))
     errors))
 
-(defmacro if-valid
-  ([then] `(let [errs# (req-errors)]
-             (if (empty? errs#) ~then (respond-400 (s/join " " errs#)))))
-  ([then else] `(if (empty? (req-errors)) ~then ~else)))
-
-(defmacro when-valid [then] `(when (empty? (req-errors)) ~then))
+; (defmacro if-valid
+;   ([then] `(let [errs# (req-errors)]
+;              (if (empty? errs#) ~then (respond-400 (s/join " " errs#)))))
+;   ([then else] `(if (empty? (req-errors)) ~then ~else)))
+;
+; (defmacro when-valid [then] `(when (empty? (req-errors)) ~then))
