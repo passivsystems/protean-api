@@ -77,14 +77,13 @@
    rep is the requested endpoint
    ep is the endpoint
    req is the request"
-  [protean-home tree corpus rep ep req cfg]
+  [protean-home tree rep ep req cfg]
   (fn [rule]
     (let [all (conj (into {} (d/success-status tree)) (into {} (d/error-status tree)))
           aug-req (aug-path-params rep ep req) ;; TODO required?
           rsp (map #(format-rsp protean-home tree %) all)]
       (binding [sim/*protean-home* protean-home
-                sim/*tree* tree
-                sim/*corpus* corpus]
+                sim/*tree* tree]
         (try
           (cond
             rule                       (apply rule [aug-req rsp])
@@ -126,8 +125,7 @@
           (protean-error-404)))
       (let [rules (get-in sims [svc endpoint method])
             request (sim-req req endpoint svc)
-            corpus {}
-            execute (execute-fn protean-home tree corpus requested-endpoint endpoint request sim-cfg)
+            execute (execute-fn protean-home tree requested-endpoint endpoint request sim-cfg)
             response (when tree (execute rules))]
         (log-info "sim cfg:" sim-cfg)
         (log-info "executed" (if rules "sim extension rules" "default rules") "for uri:" uri "(svc:" svc "endpoint:" endpoint "method:" method ")")

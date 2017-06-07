@@ -24,7 +24,6 @@
 
 (def ^:dynamic *protean-home*)
 (def ^:dynamic *tree*)
-(def ^:dynamic *corpus*)
 
 (defn dependencies [xs]
   (pom/add-dependencies
@@ -54,15 +53,13 @@
   "Creates a job to be scheduled from provided delay - will ensure dynamic bindings are preserved"
   [delayed]
   (let [captured_protean-home *protean-home*
-        captured_tree *tree*
-        captured_corpus *corpus*]
+        captured_tree *tree*]
     (fn []
       (try
         (do
           (log-debug "timeout - executing job")
           (binding [*protean-home* captured_protean-home
-                    *tree* captured_tree
-                    *corpus* captured_corpus]
+                    *tree* captured_tree]
             @delayed))
       (catch Exception e (utils/print-error e))))))
 
