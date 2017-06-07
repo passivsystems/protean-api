@@ -261,10 +261,10 @@
 (defn req-errors
   "Validate request against codex specification"
   []
-  (let [errors (seq (concat (v/validate-headers (d/req-hdrs *tree*) *request*)
-                            (v/validate-query-params *request* *tree*)
-                            (v/validate-form-params *request* *tree*)
-                            (body-errors *request* *tree*)))]
+  (let [errors (seq (remove nil? (conj (v/validate-headers (d/req-hdrs *tree*) *request*)
+                                       (v/validate-query-params *request* *tree*)
+                                       (v/validate-form-params *request* *tree*)
+                                       (body-errors *request* *tree*))))]
     (when errors (log-warn (s/join "," errors)))
     errors))
 
