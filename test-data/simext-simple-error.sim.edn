@@ -3,6 +3,8 @@
 
 {
   "sample" {
-    "simple" {:get [#(error)]}
+    "simple" {
+      :get (fn [request responses] (respond responses 400))
+    }
   }
 }

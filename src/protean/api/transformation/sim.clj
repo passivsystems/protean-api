@@ -24,7 +24,6 @@
 
 (def ^:dynamic *protean-home*)
 (def ^:dynamic *tree*)
-(def ^:dynamic *request*)
 (def ^:dynamic *corpus*)
 
 (defn dependencies [xs]
@@ -54,15 +53,15 @@
 (defn- job
   "Creates a job to be scheduled from provided delay - will ensure dynamic bindings are preserved"
   [delayed]
-  (let [captured_tree *tree*
-        captured_request *request*
+  (let [captured_protean-home *protean-home*
+        captured_tree *tree*
         captured_corpus *corpus*]
     (fn []
       (try
         (do
           (log-debug "timeout - executing job")
-          (binding [*tree* captured_tree
-                    *request* captured_request
+          (binding [*protean-home* captured_protean-home
+                    *tree* captured_tree
                     *corpus* captured_corpus]
             @delayed))
       (catch Exception e (utils/print-error e))))))
@@ -95,41 +94,40 @@
 ;; Requests
 ;; =============================================================================
 
-(defn body [] (:body *request*))
+(defn body [request] (:body request))
 
 (defn body-clj
-  ([] (c/clj (body)))
-  ([k] (c/clj (body) (or k false))))
+  ([request] (c/clj (body request)))
+  ([request k] (c/clj (body request) (or k false))))
 
-(defn query-param [p] (get-in *request* [:query-params p]))
+(defn query-param [request p] (get-in request [:query-params p]))
 
-(defn path-param [p] (get-in *request* [:path-params p]))
+(defn path-param [request p] (get-in request [:path-params p]))
 
-(defn flip [f]
-  (fn [x y] (f y x)))
+(defn flip [f] (fn [x y] (f y x)))
 
-(defn matrix-params [mp-name]
-  (when-let [pp (path-param (str ";" mp-name))]
+(defn matrix-params [request mp-name]
+  (when-let [pp (path-param request (str ";" mp-name))]
     (->> pp
         ((flip s/split) #";")
         (filter seq)
         (map #(s/split % #"="))
         (into {}))))
 
-(defn param [p] (get-in *request* [:params p]))
+(defn param [request p] (get-in request [:params p]))
 
 (defn route-param
   "Simplisticly grabs the last part of a uri"
   [route-params]
   (last (s/split (:* route-params) #"/")))
 
-(defn form-param [p] (get-in *request* [:form-params p]))
+(defn form-param [request p] (get-in request [:form-params p]))
 
 (defn body-param
-  ([p] ((body-clj) p))
-  ([p k] (p (body-clj k))))
+  ([request p] ((body-clj) p))
+  ([request p k] (p (body-clj k))))
 
-(defn header [h] (get-in *request* [:headers h]))
+(defn header [request h] (get-in request [:headers h]))
 
 
 ;; =============================================================================
@@ -180,6 +178,10 @@
 ;
 ; (defn- rsp [s hs b] {:status s :headers hs :body b})
 
+(defn respond
+  ([responses status] (first (filter #(= (:status %) status) responses)))
+  ([responses status body] (assoc (respond responses status) :body body)))
+
 ; (defn respond
 ;   ([status] {:status status})
 ;   ([status & {:keys [body-url body headers]}]
@@ -195,15 +197,15 @@
 ;         body (assoc tpl desc detail)]
 ;     (respond 400 :headrs {h/ctype h/jsn} :body (c/js body))))
 
-(defn encode
-  "Encode d using header content type information in request"
-  [d]
-  (println "accept : " (get-in *request* [:headers "accept"]))
-  (let [accept (p/accept *request*)]
-  (cond
-    (= accept h/xml) (c/xml d)
-    (= accept h/txt) (str d)
-    :else (c/js d))))
+; (defn encode
+;   "Encode d using header content type information in request"
+;   [d]
+;   (println "accept : " (get-in *request* [:headers "accept"]))
+;   (let [accept (p/accept *request*)]
+;   (cond
+;     (= accept h/xml) (c/xml d)
+;     (= accept h/txt) (str d)
+;     :else (c/js d))))
 
 ; (defn log [what where]
 ;   (let [to-log [(str (java.util.Date.)) what]]
@@ -261,10 +263,10 @@
 (defn validate
   "Validate request against codex specification"
   [request]
-  (let [errors (seq (concat (v/validate-headers (d/req-hdrs *tree*) request)
-                            (v/validate-query-params request *tree*)
-                            (v/validate-form-params request *tree*)
-                            (body-errors request *tree*)))]
+  (let [errors (seq (remove nil? (conj (v/validate-headers (d/req-hdrs *tree*) request)
+                                       (v/validate-query-params request *tree*)
+                                       (v/validate-form-params request *tree*)
+                                       (body-errors request *tree*))))]
     (when errors (log-warn (s/join "," errors)))
     errors))
 

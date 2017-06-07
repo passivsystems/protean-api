@@ -1,9 +1,20 @@
 (ns protean.test.simplesim
-  (:require [protean.api.transformation.sim :refer :all]))
+  (:require [protean.api.transformation.sim :refer :all]
+            [protean.api.transformation.coerce :as coerce]))
 
 {
   "sample" {
-    "simple" {:get [#(if-valid (success))]}
-    "complex" {:get [#(if-valid (success) (respond 403))]}
+    "simple" {
+      :get (fn [request response]
+             (if-let [errors (validate request)]
+               (respond response 400 (coerce/pretty-js errors))
+               (respond response 200)))
+    }
+    "complex" {
+      :get (fn [request response]
+             (if-let [errors (validate request)]
+               (respond response 403)
+               (respond response 200)))
+    }
   }
 }

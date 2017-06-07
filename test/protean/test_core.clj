@@ -155,14 +155,14 @@
       :get [{
         :vars {"rp1" {:type :String :doc "A test request param"}}
         :req {:query-params {"rp1" ["${rp1}" :required]}}
-        :rsp {:200 {}}
+        :rsp {:200 {} :400 {}}
       }]
     }
     "complex" {
       :get [{
         :vars {"rp1" {:type :String :doc "A test request param"}}
         :req {:query-params {"rp1" ["${rp1}" :required]}}
-        :rsp {:200 {}}
+        :rsp {:200 {} :403 {}}
       }]
     }
   }

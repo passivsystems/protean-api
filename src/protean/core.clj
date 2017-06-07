@@ -40,7 +40,7 @@
   [req ep svc]
   (assoc req :endpoint ep :svc svc :body (or (dk/slurp-pun (:body req)) "")))
 
-(defn- protean-error-400 [errors] {:status 400 :headers {"Protean-error" errors}})
+(defn- protean-error-400 [errors] {:status 400 :headers {"Protean-error" "Bad Request" "Protean-error-messages"  errors}})
 
 (defn- protean-error-404 [] {:status 404 :headers {"Protean-error" "Not Found"}})
 
@@ -80,16 +80,16 @@
   [protean-home tree corpus rep ep req cfg]
   (fn [rule]
     (let [all (conj (into {} (d/success-status tree)) (into {} (d/error-status tree)))
+          aug-req (aug-path-params rep ep req) ;; TODO required?
           rsp (map #(format-rsp protean-home tree %) all)]
       (binding [sim/*protean-home* protean-home
                 sim/*tree* tree
-                sim/*request* (aug-path-params rep ep req)
                 sim/*corpus* corpus]
         (try
           (cond
-            rule                       (apply rule [req rsp])
+            rule                       (apply rule [aug-req rsp])
             (false? (:validating cfg)) (first rsp)
-            :else                      (if-let [errors (sim/validate req)]
+            :else                      (if-let [errors (sim/validate aug-req)]
                                          (protean-error-400 errors)
                                          (first rsp)))
           (catch Exception e  (utils/print-error e) (protean-error-500)))))))
