@@ -1,6 +1,8 @@
 (ns protean.test-core
-  (:require [protean.core :as core]
+  (:require [clojure.java.io :refer [file]]
+            [protean.core :as core]
             [protean.api.protocol.http :as h]
+            [protean.api.codex.reader :as r]
             [expectations :refer :all]
             [taoensso.timbre :as l]
             [me.rossputin.diskops :as dsk]))
@@ -178,26 +180,6 @@
 
 (def sim-3 (clojure.main/load-script "test-data/matrix-params.sim.edn"))
 
-(def cdx-6
-  {
-    "gu" {
-      "groups${;groupFilter}" {
-        :get [{
-          :rsp {:200 {}}
-          :vars {
-            "groupId" {:type :Int :doc "Group Id"}
-            "city" {:type :String :doc "City"}
-            ";groupFilter" {
-              :type :MatrixParams
-              :doc "matrix parameters to filter groups. Valid parameters are: groupId (multiple), city (multiple)"
-              :struct {"groupId" ["${groupId}" :optional :multiple] "city" ["${city}" :optional :multiple]}
-            }
-         }
-        }]
-      }
-    }
-  }
-)
-
-(let [rsp-1 (core/sim-rsp protean-home (req :get "/gu/groups;groupId=2143759047;city=szcgPg2pm5cmU6Kv8y4kCDVv4CiBVUU" h/txt body nil) cdx-6 sim-3)]
+(let [cdx (r/read-codex (dsk/pwd) (file "test-data/matrix-params.edn"))
+      rsp-1 (core/sim-rsp protean-home (req :get "/gu/groups;groupId=2143759047;city=szcgPg2pm5cmU6Kv8y4kCDVv4CiBVUU" h/txt body nil) cdx sim-3)]
   (expect #"groupId" (:body rsp-1)))
