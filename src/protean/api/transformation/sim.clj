@@ -22,9 +22,6 @@
 ;     (h/txt? ctype) s
 ;     :else (c/pretty-js s)))
 
-(def ^:dynamic *protean-home*)
-(def ^:dynamic *tree*)
-
 (defn dependencies [xs]
   (pom/add-dependencies
     :coordinates xs
@@ -40,7 +37,8 @@
   "Quantum slurp, used to look for sim extension referenced resources in
    multiple places.
    p is a resource path (probably relative)."
-  [p] (slurp (d/to-path *protean-home* p *tree*)))
+  [{:keys [protean-home tree] :as request} p]
+  (slurp (d/to-path protean-home p tree)))
 
 
 ;; =============================================================================
@@ -52,20 +50,13 @@
 (defn- job
   "Creates a job to be scheduled from provided delay - will ensure dynamic bindings are preserved"
   [delayed]
-  (let [captured_protean-home *protean-home*
-        captured_tree *tree*]
-    (fn []
-      (try
-        (do
-          (log-debug "timeout - executing job")
-          (binding [*protean-home* captured_protean-home
-                    *tree* captured_tree]
-            @delayed))
-      (catch Exception e (utils/print-error e))))))
+  (fn []
+    (log-debug "timeout - executing job")
+    (try @delayed
+      (catch Exception e (utils/print-error e)))))
 
 (defn at-delayed [ms-time delayed]
   (at/at ms-time (job delayed) schedule-pool)
-;  (at/show-schedule schedule-pool)
   nil)
 
 (defmacro at
@@ -75,7 +66,6 @@
 (defn after-delayed
   [delay-ms delayed]
   (at/after delay-ms (job delayed) schedule-pool)
-;  (at/show-schedule schedule-pool)
   nil)
 
 (defmacro after
@@ -251,19 +241,20 @@
 ;; Validation of Request by Codex Specification
 ;; =============================================================================
 
-(defn- body-errors [request tree]
+(defn- body-errors [request protean-home tree]
   (let [expected-ctype (d/req-ctype tree)
-        schema (d/to-path *protean-home* (d/get-in-tree tree [:req :body-schema]) tree)
+        schema (d/to-path protean-home (d/get-in-tree tree [:req :body-schema]) tree)
         codex-body (d/body-req tree)]
     (v/validate-body request expected-ctype schema codex-body)))
 
 (defn validate
   "Validate request against codex specification"
   [request]
-  (let [errors (seq (remove nil? (conj (v/validate-headers (d/req-hdrs *tree*) request)
-                                       (v/validate-query-params request *tree*)
-                                       (v/validate-form-params request *tree*)
-                                       (body-errors request *tree*))))]
+  (let [{:keys [tree protean-home]} request
+        errors (seq (remove nil? (conj (v/validate-headers (d/req-hdrs tree) request)
+                                       (v/validate-query-params request tree)
+                                       (v/validate-form-params request tree)
+                                       (body-errors request protean-home tree))))]
     (when errors (log-warn (s/join "," errors)))
     errors))
 

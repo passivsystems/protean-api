@@ -80,18 +80,17 @@
   [protean-home tree rep ep req cfg]
   (fn [rule]
     (let [all (conj (into {} (d/success-status tree)) (into {} (d/error-status tree)))
-          aug-req (aug-path-params rep ep req) ;; TODO required?
+          aug-req (merge (aug-path-params rep ep req) ;; TODO required?
+                         {:tree tree :protean-home protean-home})
           rsp (map #(format-rsp protean-home tree %) all)]
-      (binding [sim/*protean-home* protean-home
-                sim/*tree* tree]
-        (try
-          (cond
-            rule                       (apply rule [aug-req rsp])
-            (false? (:validating cfg)) (first rsp)
-            :else                      (if-let [errors (sim/validate aug-req)]
-                                         (protean-error-400 errors)
-                                         (first rsp)))
-          (catch Exception e  (utils/print-error e) (protean-error-500)))))))
+      (try
+        (cond
+          rule                       (apply rule [aug-req rsp])
+          (false? (:validating cfg)) (first rsp)
+          :else                      (if-let [errors (sim/validate aug-req)]
+                                       (protean-error-400 errors)
+                                       (first rsp)))
+        (catch Exception e  (utils/print-error e) (protean-error-500))))))
 
 ;; =============================================================================
 ;; Sim Execution
