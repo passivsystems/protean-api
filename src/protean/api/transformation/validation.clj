@@ -74,11 +74,10 @@
         (catch Exception e (str "Could not parse json:" (:body payload) "\n" (.getMessage e)))))))
 
 (defn parse-hdr [hdr]
-  (let [parse-qlf (fn [qlf]
-         (if qlf
-           (let [[k v _] (map s/trim (s/split qlf #"="))]
-              {k v})))
-        [value rest] (s/split hdr #";")
+  (let [parse-qlf (fn [qlf] (when qlf
+                              (let [[k v _] (map s/trim (s/split qlf #"="))]
+                                {k v})))
+        [value rest] (s/split (str hdr) #";")
         qlfs (into {} (parse-qlf rest))]
       [(s/trim value) qlfs]))
 
