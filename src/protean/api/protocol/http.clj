@@ -13,11 +13,11 @@
 ;; Status codes
 ;;;;;;;;;;;;;;;
 
-(defn success? [status]
-  (.startsWith (str status) "2"))
-
-(defn client-err? [status]
-  (.startsWith (str status) "4"))
+; (defn success? [status]
+;   (.startsWith (str status) "2"))
+;
+; (defn client-err? [status]
+;   (.startsWith (str status) "4"))
 
 
 ;; Headers

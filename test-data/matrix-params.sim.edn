@@ -4,9 +4,9 @@
 {
   "gu" {
     "groups${;groupFilter}" {
-      :get (fn [request responses]
+      :get (fn [request]
              (let [mp (matrix-params request "groupFilter")]
-               (respond responses 200 (c/js mp))))
+               (respond request 200 (c/js mp))))
     }
   }
 }

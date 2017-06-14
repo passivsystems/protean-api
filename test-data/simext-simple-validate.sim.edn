@@ -5,16 +5,16 @@
 {
   "sample" {
     "simple" {
-      :get (fn [request response]
+      :get (fn [request]
              (if-let [errors (validate request)]
-               (respond response 400 (coerce/pretty-js errors))
-               (respond response 200)))
+               (respond request 400 (coerce/pretty-js errors))
+               (respond request 200)))
     }
     "complex" {
-      :get (fn [request response]
+      :get (fn [request]
              (if-let [errors (validate request)]
-               (respond response 403)
-               (respond response 200)))
+               (respond request 403)
+               (respond request 200)))
     }
   }
 }

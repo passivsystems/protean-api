@@ -165,9 +165,15 @@
 ;
 ; (defn- rsp [s hs b] {:status s :headers hs :body b})
 
+(defn success-responses [request] (get-in request [:response :success]))
+
+(defn error-responses [request] (get-in request [:response :error]))
+
+(defn responses [request] (concat (success-responses request) (error-responses request)))
+
 (defn respond
-  ([responses status] (first (filter #(= (:status %) status) responses)))
-  ([responses status body] (assoc (respond responses status) :body body)))
+  ([request status] (first (filter #(= (:status %) status) (responses request))))
+  ([request status body] (assoc (respond request status) :body body)))
 
 ; (defn respond
 ;   ([status] {:status status})
