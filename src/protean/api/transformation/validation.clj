@@ -38,6 +38,12 @@
       (when (not (every? (set received-form) expected-form))
         (str "expected form params " expected-form " (was " received-form ")")))))
 
+(defn validate-matrix-params [request tree]
+  (let [rmp (pp/matrix-params request)
+        cmp (d/mps tree false)]
+    (when-not (every? rmp cmp)
+      (str "expected matrix params " cmp " (was " rmp ")"))))
+
 (defn- zip-str [s] (z/xml-zip (x/parse (ByteArrayInputStream. (.getBytes s)))))
 
 (defn- map-vals [m k] (set (keep k (tree-seq #(or (map? %) (vector? %)) identity m))))

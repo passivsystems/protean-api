@@ -85,6 +85,20 @@
        (map (partial f include-optional))
        (into {})))
 
+(defn recursive-filter [m k]
+  (filter #(and (map? %) (contains? % k)) (tree-seq map? vals m)))
+
+(defn mps
+  "Get matrix parameters from codex."
+  [t include-optional]
+  (->> (recursive-filter t :struct)
+       (first)
+       (:struct)
+       (map (partial f include-optional))
+       (map first)
+       (remove nil?)
+       (into #{})))
+
 (defn- codex-req-hdrs [tree]
   ; we don't use get-in-tree as we want to merge definitions in all scopes here
   (into {} (remove nil? (map #(get-in % [:req :headers]) tree))))

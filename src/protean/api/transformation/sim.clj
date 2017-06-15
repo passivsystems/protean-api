@@ -108,13 +108,18 @@
 (defn flip [f]
   (fn [x y] (f y x)))
 
-(defn matrix-params [mp-name]
-  (when-let [pp (path-param (str ";" mp-name))]
-    (->> pp
-        ((flip s/split) #";")
-        (filter seq)
-        (map #(s/split % #"="))
-        (into {}))))
+(defn matrix-params
+  "Gets matrix params given a matrix param placeholder.
+   E.G. /groups${;groupFilter} has a
+   matrix param placeholder ';groupFilter' which can be associated with several
+   matrix params."
+  ([mp-name]
+   (when-let [pp (path-param (str ";" mp-name))]
+     (->> pp
+       ((flip s/split) #";")
+       (filter seq)
+       (map #(s/split % #"="))
+       (into {})))))
 
 (defn param [p] (get-in *request* [:params p]))
 
@@ -264,6 +269,7 @@
   (let [errors (seq (remove nil? (conj (v/validate-headers (d/req-hdrs *tree*) *request*)
                                        (v/validate-query-params *request* *tree*)
                                        (v/validate-form-params *request* *tree*)
+                                       (v/validate-matrix-params *request* *tree*)
                                        (body-errors *request* *tree*))))]
     (when errors (log-warn (s/join "," errors)))
     errors))
