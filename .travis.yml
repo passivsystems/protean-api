@@ -1,1 +1,3 @@
-script: lein expectations
+language: clojure
+
+script: lein2 expectations
