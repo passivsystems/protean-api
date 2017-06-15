@@ -93,7 +93,12 @@
 
 (defn flip [f] (fn [x y] (f y x)))
 
-(defn matrix-params [request mp-name]
+(defn matrix-params
+  "Gets matrix params given a matrix param placeholder.
+   E.G. /groups${;groupFilter} has a
+   matrix param placeholder ';groupFilter' which can be associated with several
+   matrix params."
+  [request mp-name]
   (when-let [pp (path-param request (str ";" mp-name))]
     (->> pp
         ((flip s/split) #";")
@@ -260,6 +265,7 @@
         errors (seq (remove nil? (conj (v/validate-headers (d/req-hdrs tree) request)
                                        (v/validate-query-params request tree)
                                        (v/validate-form-params request tree)
+                                       (v/validate-matrix-params request tree)
                                        (body-errors request protean-home tree))))]
     (when errors (log-warn (s/join "," errors)))
     errors))
