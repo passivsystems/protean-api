@@ -3,16 +3,16 @@
   (:require [clojure.java.io :as io]
             [environ.core :refer [env]]
             [me.rossputin.diskops :as dsk]
-            [protean.config :as c]
             [protean.api.protocol.http :as h]))
 
 (defn custom-keys
   "returns only keys which are not keywords"
   [c] (seq (remove keyword? (keys c))))
 
-(defn to-seq [codices svc path method]
+(defn to-seq
   "creates a sequence (for now aka 'tree' - needs renaming) that can be
    traversed to resolve required references in scope"
+  [codices svc path method]
   [(get-in codices [svc path method])
    (get-in codices [svc path])
    (get-in codices [svc])
@@ -43,9 +43,8 @@
 
 (defn get-path-locations
   "Returns all locations that correspond to a relative path, provided a codex-dir"
-  [path codex-dir]
+  [protean-home path codex-dir]
   (let [current-dir (dsk/pwd)
-        protean-home (c/protean-home)
         locations [(str codex-dir "/" path)
                    (str current-dir "/" path)
                    (str protean-home "/" path)]]
@@ -53,9 +52,9 @@
 
 (defn to-path-dir
   "Resolves relative paths to absolute, provided a codex-dir"
-  [path codex-dir]
+  [protean-home path codex-dir]
   (if (dsk/as-relative path)
-    (let [locations (get-path-locations path codex-dir)
+    (let [locations (get-path-locations protean-home path codex-dir)
           abs-path (first (filter dsk/exists? locations))]
       (if abs-path
         abs-path
@@ -65,8 +64,8 @@
 
 (defn to-path
   "Resolves relative paths to absolute, provided a tree"
-  [path tree]
-  (to-path-dir path (get-in-tree tree [:codex-dir])))
+  [protean-home path tree]
+  (to-path-dir protean-home path (get-in-tree tree [:codex-dir])))
 
 ;; =============================================================================
 ;; Codex request
@@ -86,13 +85,27 @@
        (map (partial f include-optional))
        (into {})))
 
+(defn recursive-filter [m k]
+  (filter #(and (map? %) (contains? % k)) (tree-seq map? vals m)))
+
+(defn mps
+  "Get matrix parameters from codex."
+  [t include-optional]
+  (->> (recursive-filter t :struct)
+       (first)
+       (:struct)
+       (map (partial f include-optional))
+       (map first)
+       (remove nil?)
+       (into #{})))
+
 (defn- codex-req-hdrs [tree]
   ; we don't use get-in-tree as we want to merge definitions in all scopes here
-  (into {} (merge (remove nil? (map #(get-in % [:req :headers]) tree)))))
+  (into {} (remove nil? (map #(get-in % [:req :headers]) tree))))
 
 (defn req-ctype [tree]
   (let [hdrs (codex-req-hdrs tree)
-        ctype (get-in hdrs h/ctype)
+        ctype (get hdrs h/ctype)
         body-schema (git tree [:req :body-schema])
         body-example (git tree [0 :req :body-examples])
         body (git tree [:req :body])

@@ -1,0 +1,32 @@
+{
+  :includes [ "defaults.edn" ]
+
+  :title "Groups and Users"
+  :doc "Groups and Users API - a Matrix Params example."
+
+  "gu" {
+    "groups${;groupFilter}" {
+      :get {
+        :vars {
+          "groupId"       {:type :Int    :doc "Group Id"}
+          "city"          {:type :String :doc "City"}
+          ";groupFilter" {
+            :type :MatrixParams
+            ; doc includes struct information, since not currently included in generated doc
+            :doc "matrix parameters to filter groups. Valid parameters are: groupId (multiple), city (multiple)"
+            ; :examples [";city=London,Glasgow" ";city=London;city=Glasgow" ";city=London;city=Glasgow;groupId=10"]
+            :struct {
+              "groupId" ["${groupId}" :required :multiple]
+              "city"    ["${city}"    :optional :multiple]
+            }
+          }
+        }
+        :rsp {
+          :200 {}
+          :400 {:doc "Bad request"}
+        }
+      }
+    }
+
+  }
+}
