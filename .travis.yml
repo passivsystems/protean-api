@@ -1,3 +1,7 @@
 language: clojure
 
 script: lein2 expectations
+
+branches:
+  only:
+  - develop
