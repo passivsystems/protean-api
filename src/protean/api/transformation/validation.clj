@@ -48,36 +48,34 @@
 
 (defn- map-vals [m k] (set (keep k (tree-seq #(or (map? %) (vector? %)) identity m))))
 
-(defn- validate-xml-body [payload schema codex-body]
+(defn- validate-xml-body [{:keys [body]} schema codex-body]
   (println "xml schema : " schema)
   (if schema
-    (let [body (:body payload)
-          validation (xv/validate schema body)]
+    (let [validation (xv/validate schema body)]
       (when (not (:success validation))
         (str "Xml body: " body "\ndid not conform to xml schema " schema " : " (:message validation))))
     (if codex-body
       (let [tags-in-str (fn [s] (map-vals (zip-str s) :tag))
             expected-tags (tags-in-str (c/pretty-xml codex-body))
-            received-tags (tags-in-str (:body payload))]
+            received-tags (tags-in-str body)]
         (if (= received-tags expected-tags)
           (str "Xml body not valid - expected " expected-tags " but received " received-tags))))))
 
-(defn- validate-jsn-body [payload schema codex-body]
+(defn- validate-jsn-body [{:keys [body]} schema codex-body]
   (if schema
-    (let [body (:body payload)
-          validation (jv/validate schema body)]
+    (let [validation (jv/validate schema body)]
       (when (not (:success validation))
         (str "Json body: " body "\ndid not conform to json schema " schema " : " (:message validation))))
     (when codex-body
       (try
-        (let [body-jsn (jsn/parse-string (:body payload))]
+        (let [body-jsn (jsn/parse-string body)]
           (if (map? codex-body)
             (let [expected-keys (set (keys codex-body))
                   received-keys (set (keys body-jsn))]
               (when (not (= received-keys expected-keys))
                 (str "Json body not valid - expected " expected-keys " but received " received-keys)))
             (contains? codex-body body-jsn)))
-        (catch Exception e (str "Could not parse json:" (:body payload) "\n" (.getMessage e)))))))
+        (catch Exception e (str "Could not parse json:" body "\n" (.getMessage e)))))))
 
 (defn parse-hdr [hdr]
   (let [parse-qlf (fn [qlf] (when qlf
