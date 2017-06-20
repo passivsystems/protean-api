@@ -27,12 +27,12 @@
 ;; Sim Machinery Access
 ;; =============================================================================
 
-(defn qslurp
-  "Quantum slurp, used to look for sim extension referenced resources in
-   multiple places.
+(defn find-path
+  "Quantum path lookup, used to look for sim extension referenced resources in
+   multiple places. Resolves relative paths to absolute.
    p is a resource path (probably relative)."
   [{:keys [protean-home tree] :as request} p]
-  (slurp (d/to-path protean-home p tree)))
+  (d/to-path protean-home p tree))
 
 
 ;; =============================================================================
