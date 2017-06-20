@@ -199,9 +199,9 @@
 ;     (= accept h/txt) (str d)
 ;     :else (c/js d))))
 
-(defn log [what where]
-  (let [to-log [(str (java.util.Date.)) what]]
-    (spit where (with-out-str (clojure.pprint/pprint to-log)) :append true)))
+; (defn log [what where]
+;   (let [to-log [(str (java.util.Date.)) what]]
+;     (spit where (with-out-str (clojure.pprint/pprint to-log)) :append true)))
 
 ; (defn make-request
 ;   "Makes an API request"
