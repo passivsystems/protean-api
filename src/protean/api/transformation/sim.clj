@@ -16,12 +16,6 @@
      :only (debug info warn)
      :rename {debug log-debug info log-info warn log-warn}]))
 
-; (defn- pretty-str [s ctype]
-;   (cond
-;     (h/xml? ctype) (c/pretty-xml s)
-;     (h/txt? ctype) s
-;     :else (c/pretty-js s)))
-
 (defn dependencies [xs]
   (pom/add-dependencies
     :coordinates xs
