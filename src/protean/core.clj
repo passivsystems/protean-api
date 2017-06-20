@@ -2,7 +2,7 @@
   "Machinery provided for running sims."
   (:require [clojure.string :as s]
             [me.rossputin.diskops :as dk]
-            [protean.utils :as utils]
+            [protean.utils :as u]
             [protean.api.codex.document :as d]
             [protean.api.codex.placeholder :as ph]
             [protean.api.protocol.http :as http]
@@ -26,7 +26,7 @@
         filtered-ep (filter #(parse-endpoint requested-endpoint %) endpoints)]
     (if (next filtered-ep)
       (or (some #{requested-endpoint} filtered-ep) requested-endpoint nil)
-        (first (filter #(parse-endpoint requested-endpoint %) endpoints)))))
+        (u/find #(parse-endpoint requested-endpoint %) endpoints))))
 
 (defn- aug-path-params [req-endpoint cod-endpoint request]
   (let [ph-ks (map second (re-seq ph/ph cod-endpoint))
@@ -92,7 +92,7 @@
           :else                      (if-let [errors (sim/validate aug-req)]
                                        (protean-error-400 errors)
                                        (first success-rsp)))
-        (catch Exception e  (utils/print-error e) (protean-error-500))))))
+        (catch Exception e  (u/print-error e) (protean-error-500))))))
 
 ;; =============================================================================
 ;; Sim Execution

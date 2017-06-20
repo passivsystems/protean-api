@@ -3,6 +3,7 @@
   (:require [clojure.java.io :as io]
             [environ.core :refer [env]]
             [me.rossputin.diskops :as dsk]
+            [protean.utils :as u]
             [protean.api.protocol.http :as h]))
 
 (defn custom-keys
@@ -55,7 +56,7 @@
   [protean-home path codex-dir]
   (if (dsk/as-relative path)
     (let [locations (get-path-locations protean-home path codex-dir)
-          abs-path (first (filter dsk/exists? locations))]
+          abs-path (u/find dsk/exists? locations)]
       (if abs-path
         abs-path
         (throw (Exception.
@@ -156,6 +157,19 @@
 (defn success-status [tree] (status-matching tree #"[123]\d\d"))
 
 (defn error-status [tree] (status-matching tree #"[45]\d\d"))
+
+(defn success-responses
+  "Note here request is a request with tree and other data blended in"
+  [request]
+  (get-in request [:response :success]))
+
+(defn error-responses
+  "Note here request is a request with tree and other data blended in"
+  [request]
+  (get-in request [:response :error]))
+
+(defn responses [request]
+  (concat (success-responses request) (error-responses request)))
 
 
 ;; =============================================================================

@@ -2,7 +2,7 @@
   "API for powering sim extensions."
   (:require [clojure.string :as s]
             [cemerick.pomegranate :as pom]
-            [protean.utils :as utils]
+            [protean.utils :as u]
             [protean.api.protocol.http :as h]
             [protean.api.protocol.protean :as p]
             [protean.api.codex.document :as d]
@@ -53,7 +53,7 @@
   (fn []
     (log-debug "timeout - executing job")
     (try @delayed
-      (catch Exception e (utils/print-error e)))))
+      (catch Exception e (u/print-error e)))))
 
 (defn at-delayed [ms-time delayed]
   (at/at ms-time (job delayed) schedule-pool)
@@ -170,14 +170,8 @@
 ;
 ; (defn- rsp [s hs b] {:status s :headers hs :body b})
 
-(defn success-responses [request] (get-in request [:response :success]))
-
-(defn error-responses [request] (get-in request [:response :error]))
-
-(defn responses [request] (concat (success-responses request) (error-responses request)))
-
 (defn respond
-  ([request status] (first (filter #(= (:status %) status) (responses request))))
+  ([request status] (u/find #(= (:status %) status) (d/responses request)))
   ([request status body] (assoc (respond request status) :body body)))
 
 ; (defn respond

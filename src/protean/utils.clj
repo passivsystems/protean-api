@@ -1,7 +1,8 @@
 (ns protean.utils
   "Common methods used in core and api"
   (:require [io.aviso.ansi :as aa])
-  (:use [taoensso.timbre :as timbre :only (error) :rename {error log-error}]))
+  (:use [taoensso.timbre :as timbre :only (error) :rename {error log-error}])
+  (:refer-clojure :exclude [find]))
 
 (defn stacktrace [e]
   (let [sw (java.io.StringWriter.)]
@@ -9,3 +10,5 @@
     (.toString sw)))
 
 (defn print-error [e] (log-error (aa/red (str "caught exception: " (stacktrace e)))))
+
+(defn find [pred-fn xs] (first (filter pred-fn xs)))
