@@ -91,7 +91,7 @@
 
 (defn path-param [request p] (get-in request [:path-params p]))
 
-(defn flip [f] (fn [x y] (f y x)))
+(defn- flip [f] (fn [x y] (f y x)))
 
 (defn matrix-params
   "Gets matrix params given a matrix param placeholder.
@@ -108,11 +108,6 @@
 
 (defn param [request p] (get-in request [:params p]))
 
-(defn route-param
-  "Simplisticly grabs the last part of a uri"
-  [route-params]
-  (last (s/split (:* route-params) #"/")))
-
 (defn form-param [request p] (get-in request [:form-params p]))
 
 (defn body-param
@@ -126,25 +121,7 @@
 ;; Responses
 ;; =============================================================================
 
-; (defn- format-rsp [rsp-entry]
-;   (if rsp-entry
-;     (let [status-code (Integer/parseInt (name (key rsp-entry)))
-;           rsp (val rsp-entry)
-;           body-url (first (:body-examples rsp))
-;           headers (:headers rsp)
-;           headers_w_ctype (if (and body-url (not (get-in headers [h/ctype])))
-;                             (assoc headers h/ctype (h/mime body-url))
-;                             headers)
-;           raw-body (if body-url (slurp (d/to-path *protean-home* body-url *tree*)))
-;           body (if (h/txt? (get headers_w_ctype h/ctype))
-;                   (s/trim-newline raw-body)
-;                   raw-body)
-;           response {:status status-code :headers headers_w_ctype :body body}]
-;       (log-debug "rsp headers including inferred content type : " headers_w_ctype)
-;       (log-debug "formatting rsp:" rsp)
-;       (log-debug "returning :" response)
-;       response)
-;     (log-info "no response found to handle request")))
+
 ;
 ; (defn success
 ;   "Returns a randomly selected success response as defined for endpoint"
@@ -168,7 +145,7 @@
 ;       (if (seq error) (ph/swap error-rsp *tree* {} :gen-all true) {:status x})))
 ;   ([] (error (Long. (name (first (rand-nth (d/error-status *tree*))))))))
 ;
-; (defn- rsp [s hs b] {:status s :headers hs :body b})
+;
 
 (defn respond
   ([request status] (u/find #(= (:status %) status) (d/responses request)))
@@ -188,58 +165,6 @@
 ;         tpl (or (d/get-in-tree *tree* [:errors :400 :template]) (:template (:400 (p/errors))))
 ;         body (assoc tpl desc detail)]
 ;     (respond 400 :headrs {h/ctype h/jsn} :body (c/js body))))
-
-; (defn encode
-;   "Encode d using header content type information in request"
-;   [d]
-;   (println "accept : " (get-in *request* [:headers "accept"]))
-;   (let [accept (p/accept *request*)]
-;   (cond
-;     (= accept h/xml) (c/xml d)
-;     (= accept h/txt) (str d)
-;     :else (c/js d))))
-
-; (defn log [what where]
-;   (let [to-log [(str (java.util.Date.)) what]]
-;     (spit where (with-out-str (clojure.pprint/pprint to-log)) :append true)))
-
-; (defn make-request
-;   "Makes an API request"
-;   [method url content]
-;   (let [the-request (assoc content
-;                       :url url
-;                       :method method
-;                       :throw-exceptions false)
-;         res (clt/request the-request)]
-;     (log-debug "res" res)
-;     (if-let [log-file (:log content)]
-;       (log [(str "Response from " (:url content)) res] log-file))
-;     res))
-;
-; (defn simple-request
-;   [method url hdrs body]
-;   (make-request method url
-;                 {:content-type (header "content-type")
-;                  :headers (merge
-;                             (dissoc (:headers *request*) "content-length")
-;                             hdrs)
-;                  :body body}))
-;
-; (defn post
-;   ([url body] (post nil body))
-;   ([url hdrs body] (simple-request :post url hdrs body)))
-;
-; (defn put
-;   ([url body] (put url nil body))
-;   ([url hdrs body] (simple-request :put url hdrs body)))
-;
-; (defn patch
-;   ([url body] (patch url nil body))
-;   ([url hdrs body] (simple-request :patch url hdrs body)))
-
-(defn env
-  "Accesses environment variables"
-  [name] (ec/env name))
 
 
 ;; =============================================================================
@@ -263,10 +188,3 @@
                                        (body-errors request protean-home tree))))]
     (when errors (log-warn (s/join "," errors)))
     errors))
-
-; (defmacro if-valid
-;   ([then] `(let [errs# (req-errors)]
-;              (if (empty? errs#) ~then (respond-400 (s/join " " errs#)))))
-;   ([then else] `(if (empty? (req-errors)) ~then ~else)))
-;
-; (defmacro when-valid [then] `(when (empty? (req-errors)) ~then))

@@ -160,13 +160,11 @@
 
 (defn success-responses
   "Note here request is a request with tree and other data blended in"
-  [request]
-  (get-in request [:response :success]))
+  [{:keys [response]}] (:success response))
 
 (defn error-responses
   "Note here request is a request with tree and other data blended in"
-  [request]
-  (get-in request [:response :error]))
+  [{:keys [response]}] (:error response))
 
 (defn responses [request]
   (concat (success-responses request) (error-responses request)))
