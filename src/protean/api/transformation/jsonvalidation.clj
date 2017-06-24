@@ -1,6 +1,5 @@
 (ns protean.api.transformation.jsonvalidation
   "Tools for validating json/xml."
-  (:require [clojure.java.io :as io])
   (:import [com.fasterxml.jackson.databind ObjectMapper]
            [com.github.fge.jsonschema.main JsonSchemaFactory]
            [com.github.fge.jsonschema.load.configuration LoadingConfiguration]

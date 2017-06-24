@@ -1,8 +1,6 @@
 (ns protean.api.codex.document
   "Codex data extraction and truthiness functionality."
-  (:require [clojure.java.io :as io]
-            [environ.core :refer [env]]
-            [me.rossputin.diskops :as dsk]
+  (:require [me.rossputin.diskops :as dsk]
             [protean.utils :as u]
             [protean.api.protocol.http :as h]))
 

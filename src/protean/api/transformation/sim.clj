@@ -3,15 +3,13 @@
   (:require [clojure.string :as s]
             [cemerick.pomegranate :as pom]
             [protean.utils :as u]
-            [protean.api.protocol.http :as h]
-            [protean.api.protocol.protean :as p]
+            ; [protean.api.protocol.http :as h]
+            ; [protean.api.protocol.protean :as p]
             [protean.api.codex.document :as d]
             [protean.api.transformation.coerce :as c]
-            [protean.api.codex.placeholder :as ph]
+            ; [protean.api.codex.placeholder :as ph]
             [protean.api.transformation.validation :as v]
-            [clj-http.client :as clt]
-            [overtone.at-at :as at]
-            [environ.core :as ec])
+            [overtone.at-at :as at])
   (:use [taoensso.timbre :as timbre
      :only (debug info warn)
      :rename {debug log-debug info log-info warn log-warn}]))

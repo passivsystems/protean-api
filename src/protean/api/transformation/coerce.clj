@@ -1,8 +1,7 @@
 (ns protean.api.transformation.coerce
   "General purpose coercion."
   (:refer-clojure :exclude [int long])
-  (:require [clojure.set :as st]
-            [clojure.string :as s]
+  (:require [clojure.string :as s]
             [clojure.data.xml :as xml]
             [cheshire.core :as jsn]
             [yaclot.core :refer [convert to-type]])
