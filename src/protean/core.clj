@@ -134,7 +134,7 @@
         (cond
            ;;TODO validate response structure
            (not (map? response))    (do
-                                      (log-error "Response:" response "does not match stuture {:status Int :header Vector :body String}")
+                                      (log-error "Response:" response "does not match structure {:status Int :header Vector :body String}")
                                       (protean-error-500))
            (false? (:cors sim-cfg)) response
            :else                    (merge-with merge {:headers {"Access-Control-Allow-Origin" "*"}} response))))))
