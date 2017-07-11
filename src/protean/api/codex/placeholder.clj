@@ -3,7 +3,6 @@
   (:refer-clojure :exclude [long int])
   (:require [clojure.string :as s]
             [clojure.set :refer [map-invert]]
-            [clojure.pprint]
             [protean.api.generation.generate :as gn]
             [protean.api.codex.document :as d]
             [protean.api.transformation.coerce :as c]))

@@ -6,10 +6,8 @@
             [protean.api.codex.document :as d]
             [protean.api.codex.placeholder :as ph]
             [protean.api.protocol.http :as http]
-            [protean.api.transformation.sim :as sim])
-  (:use [taoensso.timbre :as timbre
-     :only (debug info warn error)
-     :rename {info log-info warn log-warn error log-error}]))
+            [protean.api.transformation.sim :as sim]
+            [taoensso.timbre :as log]))
 
 (defn- parse-endpoint [requested-endpoint cod-endpoint]
   ; TODO instead of requiring namedparameter to start with ';' when a matrix parameter
@@ -120,7 +118,7 @@
                (when (= method :options) (http-options paths svc endpoint sim-cfg)))]
     (if (not tree)
       (do
-        (log-warn "warning - no endpoint found for" [uri method])
+        (log/warn "warning - no endpoint found for" [uri method])
         (if-let [supported-methods (keys (get-in paths [svc endpoint]))]
           (protean-error-405 supported-methods)
           (protean-error-404)))
@@ -128,13 +126,13 @@
             request (sim-req req endpoint svc)
             execute (execute-fn protean-home tree requested-endpoint endpoint request sim-cfg)
             response (when tree (execute rules))]
-        (log-info "sim cfg:" sim-cfg)
-        (log-info "executed" (if rules "sim extension rules" "default rules") "for uri:" uri "(svc:" svc "endpoint:" endpoint "method:" method ")")
-        (log-info "responding with" response)
+        (log/info "sim cfg:" sim-cfg)
+        (log/info "executed" (if rules "sim extension rules" "default rules") "for uri:" uri "(svc:" svc "endpoint:" endpoint "method:" method ")")
+        (log/info "responding with" response)
         (cond
            ;;TODO validate response structure
            (not (map? response))    (do
-                                      (log-error "Response:" response "does not match structure {:status Int :header Vector :body String}")
+                                      (log/error "Response:" response "does not match structure {:status Int :header Vector :body String}")
                                       (protean-error-500))
            (false? (:cors sim-cfg)) response
            :else                    (merge-with merge {:headers {"Access-Control-Allow-Origin" "*"}} response))))))
