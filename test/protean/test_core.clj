@@ -143,6 +143,8 @@
   }
 })
 
+;; test we get a protean error 500 if response breaks codex contract
+;; in this case we test against a codex which does not contain a 400 response
 (let [rsp-1 (core/sim-rsp protean-home (req :get "/sample/simple" h/txt body nil) cdx-4 sims)]
   (expect 500 (:status rsp-1)))
 
