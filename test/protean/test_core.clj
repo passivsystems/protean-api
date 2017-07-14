@@ -135,7 +135,7 @@
 ;; Sim extension
 ;; =============================================================================
 
-(def sims (clojure.main/load-script "test-data/simext-simple-error.sim.edn"))
+(def sims (clojure.main/load-script "test-data/simext-simple.sim.edn"))
 
 (def cdx-4 {
   "sample" {

@@ -1,0 +1,10 @@
+(ns protean.test.simplesim
+  (:require [protean.api.transformation.sim :refer :all]))
+
+{
+  "sample" {
+    "simple" {
+      :get #(respond % 400)
+    }
+  }
+}
