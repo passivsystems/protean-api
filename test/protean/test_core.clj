@@ -139,7 +139,7 @@
 
 (def cdx-4 {
   "sample" {
-    "simple" {:get [{:rsp {:200 {} :500 {}}}]}
+    "simple" {:get [{:rsp {:200 {} :501 {}}}]}
   }
 })
 
