@@ -7,6 +7,7 @@
             [protean.api.codex.placeholder :as ph]
             [protean.api.protocol.http :as http]
             [protean.api.transformation.sim :as sim]
+            [protean.api.transformation.coerce :as coerce]
             [taoensso.timbre :as log]))
 
 (defn- parse-endpoint [requested-endpoint cod-endpoint]
@@ -92,6 +93,22 @@
                                        (first success-rsp)))
         (catch Exception e  (u/print-error e) (protean-error-500))))))
 
+(defn- transform-cors
+  [rsp {:keys [cors]}]
+  (if (false? cors)
+    rsp
+    (merge-with merge {:headers {"Access-Control-Allow-Origin" "*"}} rsp)))
+
+(defn- serialise
+  [rsp tree]
+  (let [ctype (str (d/rsp-ctype (keyword (str (:status rsp))) tree))]
+    (cond
+      (empty? (:body rsp))         rsp
+      (.startsWith ctype http/jsn) (assoc rsp :body (coerce/jsn (:body rsp)))
+      (.startsWith ctype http/xml) (assoc rsp :body (coerce/xml (:body rsp)))
+      :else                        rsp)))
+
+
 ;; =============================================================================
 ;; Sim Execution
 ;; =============================================================================
@@ -129,10 +146,11 @@
         (log/info "sim cfg:" sim-cfg)
         (log/info "executed" (if rules "sim extension rules" "default rules") "for uri:" uri "(svc:" svc "endpoint:" endpoint "method:" method ")")
         (log/info "responding with" response)
-        (cond
-           ;;TODO validate response structure
-           (not (map? response))    (do
-                                      (u/print-error (Exception. (str "Response:" response "does not match structure {:status Int :header Vector :body String} - does your response comply with the codex ?")))
-                                      (protean-error-500))
-           (false? (:cors sim-cfg)) response
-           :else                    (merge-with merge {:headers {"Access-Control-Allow-Origin" "*"}} response))))))
+        ;;TODO validate response structure
+        (if (map? response)
+          (-> response
+              (transform-cors sim-cfg)
+              (serialise tree))
+          (do
+            (u/print-error (Exception. (str "Response:" response "does not match structure {:status Int :header Vector :body String} - does your response comply with the codex ?")))
+            (protean-error-500)))))))

@@ -23,7 +23,7 @@
       :Double (str (gn/rnd-double))
       :Boolean (str (gn/rnd-bool))
       :Uuid (str (gn/rnd-uuid))
-      :Json (c/js structured)
+      :Json (c/jsn structured)
       :MatrixParams (c/->matrix-params structured)
       (gn/generate type))))
 

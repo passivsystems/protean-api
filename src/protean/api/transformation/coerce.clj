@@ -15,9 +15,9 @@
 
 (defn long [s] (convert s (to-type Long)))
 
-(defn js [d] (if d (jsn/generate-string d) d))
+(defn jsn [d] (if d (jsn/generate-string d) d))
 
-(defn pretty-js [d] (if d (jsn/generate-string d {:pretty true}) d))
+(defn pretty-jsn [d] (if d (jsn/generate-string d {:pretty true}) d))
 
 (defn clj
   ([d] (if (map? d) d (jsn/parse-string d)))

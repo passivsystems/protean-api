@@ -157,7 +157,7 @@
       :get [{
         :vars {"rp1" {:type :String :doc "A test request param"}}
         :req {:query-params {"rp1" ["${rp1}" :required]}}
-        :rsp {:200 {} :400 {}}
+        :rsp {:200 {} :400 {:headers {"Content-Type" "application/json; charset=utf-8"}}}
       }]
     }
     "complex" {
@@ -168,11 +168,13 @@
       }]
     }
   }
-  })
+})
 
 (let [rsp-1 (core/sim-rsp protean-home (req :get "/sample/simple" h/txt body nil) cdx-5 sim-2)
       rsp-2 (core/sim-rsp protean-home (req :get "/sample/complex" h/txt body nil) cdx-5 sim-2)]
   (expect 400 (:status rsp-1))
+  (expect "application/json; charset=utf-8" (get-in rsp-1 [:headers "Content-Type"]))
+  (expect "[\"expected query params (\\\"rp1\\\") (was )\"]" (:body rsp-1))
   (expect 403 (:status rsp-2)))
 
 
@@ -180,8 +182,12 @@
 
 (def sim-3 (clojure.main/load-script "test-data/matrix-params.sim.edn"))
 
-(let [cdx (r/read-codex (dsk/pwd) (file "test-data/matrix-params.edn"))
-      rsp-1 (core/sim-rsp protean-home (req :get "/gu/groups;groupId=2143759047;city=szcgPg2pm5cmU6Kv8y4kCDVv4CiBVUU" h/txt body nil) cdx sim-3)
-      rsp-2 (core/sim-rsp protean-home (req :get "/gu/groups" h/txt body nil) cdx {})]
-  (expect #"groupId" (:body rsp-1))
-  (expect 400 (:status rsp-2)))
+; (let [cdx (r/read-codex (dsk/pwd) (file "test-data/matrix-params.edn"))
+;       rsp-1 (core/sim-rsp protean-home (req :get "/gu/groups;groupId=2143759047;city=Glasgow" h/txt body nil) cdx {})
+;       ; rsp-2 (core/sim-rsp protean-home (req :get "/gu/groups;groupId=1" h/txt body nil) cdx {})
+;       ]
+;   (expect 200 (:status rsp-1))
+;   (expect "application/json; charset=utf-8" (get-in rsp-1 [:headers "Content-Type"]))
+;   (expect "{\"groupId\":\"2143759047\",\"city\":\"Glasgow\"}" (:body rsp-1))
+;   ; (expect 400 (:status rsp-2)))
+; )

@@ -1,10 +1,9 @@
 (ns protean.test.matrixparams
-  (:require [protean.api.transformation.coerce :as c]
-            [protean.api.transformation.sim :refer :all]))
+  (:require [protean.api.transformation.sim :refer :all]))
 {
   "gu" {
     "groups${;groupFilter}" {
-      :get #(respond % 200 (c/js (matrix-params % "groupFilter")))
+      :get #(respond % 200 (matrix-params % "groupFilter"))
     }
   }
 }

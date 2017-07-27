@@ -156,7 +156,7 @@
 ;   (let [desc (or (d/get-in-tree *tree* [:errors :400 :description]) (:description (:400 (p/errors))))
 ;         tpl (or (d/get-in-tree *tree* [:errors :400 :template]) (:template (:400 (p/errors))))
 ;         body (assoc tpl desc detail)]
-;     (respond 400 :headrs {h/ctype h/jsn} :body (c/js body))))
+;     (respond 400 :headers {h/ctype h/jsn} :body (c/jsn body))))
 
 
 ;; =============================================================================

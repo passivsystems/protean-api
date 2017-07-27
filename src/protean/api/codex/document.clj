@@ -132,7 +132,7 @@
     (git tree [:rsp rsp-code :headers])))
 
 (defn rsp-ctype [rsp-code tree]
-  (let [ctype (get-in (codex-rsp-hdrs rsp-code tree) h/ctype)
+  (let [ctype (get (git tree [:rsp rsp-code :headers]) h/ctype)
         body-schema (git tree [:rsp rsp-code :body-schema])
         body-example (first (git tree [:rsp rsp-code :body-examples]))]
     (cond
