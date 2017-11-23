@@ -1,5 +1,7 @@
 # Protean API
 
+[![Build Status](https://api.travis-ci.org/passivsystems/protean-api.svg)](https://travis-ci.org/passivsystems/protean-api)
+
 [![Clojars Project](https://img.shields.io/clojars/v/protean-api.svg)](https://clojars.org/protean-api)
 
 
