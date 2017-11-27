@@ -156,18 +156,6 @@
 
 (defn error-status [tree] (status-matching tree #"[45]\d\d"))
 
-(defn success-responses
-  "Note here request is a request with tree and other data blended in"
-  [{:keys [response]}] (:success response))
-
-(defn error-responses
-  "Note here request is a request with tree and other data blended in"
-  [{:keys [response]}] (:error response))
-
-(defn responses [request]
-  (concat (success-responses request) (error-responses request)))
-
-
 ;; =============================================================================
 ;; Codex fragment functions (codex fragments that travel with tests etc)
 ;; =============================================================================
