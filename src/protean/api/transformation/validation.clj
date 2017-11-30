@@ -89,7 +89,7 @@
   (when expected-ctype
     (let [[expected expected-qlfs](parse-hdr expected-ctype)
           [actual actual-qlfs] (parse-hdr actual-ctype)
-          fix (fn [q] (assoc q "charset" (s/upper-case (str (get q "charset")))))]
+          fix (fn [q] (assoc q "charset" (s/upper-case (str (or (get q "charset") "utf-8")))))]
       (or
         (not (= expected actual))
         (first (data/diff (fix expected-qlfs) (fix actual-qlfs)))))))

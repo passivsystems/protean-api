@@ -3,11 +3,8 @@
   (:require [clojure.string :as s]
             [cemerick.pomegranate :as pom]
             [protean.utils :as u]
-            ; [protean.api.protocol.http :as h]
-            ; [protean.api.protocol.protean :as p]
             [protean.api.codex.document :as d]
             [protean.api.transformation.coerce :as c]
-            ; [protean.api.codex.placeholder :as ph]
             [protean.api.transformation.validation :as v]
             [overtone.at-at :as at])
   (:use [taoensso.timbre :as timbre
@@ -103,8 +100,8 @@
 (defn form-param [request p] (get-in request [:form-params p]))
 
 (defn body-param
-  ([request p] ((body-clj) p))
-  ([request p k] (p (body-clj k))))
+  ([request p] (get-in (body-clj request) (if (vector? p) p [p])))
+  ([request p k] (get-in (body-clj request k) (if (vector? p) p [p]))))
 
 (defn header [request h] (get-in request [:headers h]))
 
@@ -113,51 +110,20 @@
 ;; Responses
 ;; =============================================================================
 
+(defn success-responses
+  "Note here request is a request with tree and other data blended in"
+  [{:keys [response]}] (:success response))
 
-;
-; (defn success
-;   "Returns a randomly selected success response as defined for endpoint"
-;   []
-;   (let [successes (d/success-status *tree*)
-;         {:keys [svc request-method uri]} *request*
-;         success (format-rsp (rand-nth successes))]
-;     (if (empty? successes)
-;       (log-warn "warning - no successes found for endpoint" [svc uri request-method])
-;       (ph/swap success *tree* {} :gen-all true))))
-;
-; (defn error
-;   "Returns a specific or randomly selected error response for an endpoint"
-;   ([x]
-;     (let [errors (d/error-status *tree*)
-;           {:keys [svc request-method uri]} *request*
-;           error (filter #(= (first %) (keyword (str x))) errors)
-;           error-rsp (format-rsp (first error))]
-;       (when (empty? errors) (log-warn "warning - no errors found for endpoint" [svc uri request-method]))
-;       (when (empty? error) (log-warn "warning - sim extension error not described in codex" [svc uri request-method]))
-;       (if (seq error) (ph/swap error-rsp *tree* {} :gen-all true) {:status x})))
-;   ([] (error (Long. (name (first (rand-nth (d/error-status *tree*))))))))
-;
-;
+(defn error-responses
+  "Note here request is a request with tree and other data blended in"
+  [{:keys [response]}] (:error response))
+
+(defn responses [request]
+  (concat (success-responses request) (error-responses request)))
 
 (defn respond
-  ([request status] (u/find #(= (:status %) status) (d/responses request)))
+  ([request status] (u/find #(= (:status %) status) (responses request)))
   ([request status body] (assoc (respond request status) :body body)))
-
-; (defn respond
-;   ([status] {:status status})
-;   ([status & {:keys [body-url body headers]}]
-;     (if body-url
-;       (rsp status {h/ctype (h/mime body-url)} (qslurp body-url))
-;       (rsp status headers body))))
-;
-; (defn respond-400
-;   "Get a 400 error body template from either defaults.edn or our code default"
-;   [detail]
-;   (let [desc (or (d/get-in-tree *tree* [:errors :400 :description]) (:description (:400 (p/errors))))
-;         tpl (or (d/get-in-tree *tree* [:errors :400 :template]) (:template (:400 (p/errors))))
-;         body (assoc tpl desc detail)]
-;     (respond 400 :headers {h/ctype h/jsn} :body (c/jsn body))))
-
 
 ;; =============================================================================
 ;; Validation of Request by Codex Specification
@@ -173,7 +139,8 @@
   "Validate request against codex specification"
   [request]
   (let [{:keys [tree protean-home]} request
-        errors (seq (remove nil? (conj (v/validate-headers (d/req-hdrs tree) request)
+        errors (seq (remove nil? (conj nil
+                                       (v/validate-headers (d/req-hdrs tree) request)
                                        (v/validate-query-params request tree)
                                        (v/validate-form-params request tree)
                                        (v/validate-matrix-params request tree)
