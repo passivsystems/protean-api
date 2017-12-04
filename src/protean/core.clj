@@ -107,12 +107,14 @@
 
 (defn- serialise
   [rsp tree]
-  (let [ctype (str (d/rsp-ctype (keyword (str (:status rsp))) tree))]
+  (let [ctype (str (or (get-in rsp [:headers "Content-Type"])
+                       (d/rsp-ctype (keyword (str (:status rsp))) tree)))]
     (cond
-      (empty? (:body rsp))         rsp
-      (.startsWith ctype http/jsn) (assoc rsp :body (coerce/jsn (:body rsp)))
-      (.startsWith ctype http/xml) (assoc rsp :body (coerce/xml (:body rsp)))
-      :else                        rsp)))
+      (empty? (:body rsp))                   rsp
+      (string? (:body rsp))                  rsp
+      (s/starts-with? ctype http/jsn-simple) (assoc rsp :body (coerce/jsn (:body rsp)))
+      (s/starts-with? ctype http/xml)        (assoc rsp :body (coerce/xml (:body rsp)))
+      :else                                  rsp)))
 
 
 ;; =============================================================================
@@ -151,12 +153,12 @@
             response (when tree (execute rules))]
         (log/info "sim cfg:" sim-cfg)
         (log/info "executed" (if rules "sim extension rules" "default rules") "for uri:" uri "(svc:" svc "endpoint:" endpoint "method:" method ")")
+        ; TODO validate response structure
         (log/info "responding with :status" (:status response) ":header" (:header response) ":body" (compress (:body response)))
-        ;;TODO validate response structure
         (if (map? response)
           (-> response
               (transform-cors sim-cfg)
               (serialise tree))
           (do
-            (u/print-error (Exception. (str "Response:" response "does not match structure {:status Int :header Vector :body String} - does your response comply with the codex ?")))
+            (u/print-error (Exception. (str "Response: " (or response "nil") " does not match structure {:status Int :header Vector :body String} - does your response comply with the codex ?")))
             (protean-error-500)))))))

@@ -9,7 +9,7 @@
 
 (def protean-home (dsk/pwd))
 
-(l/set-level! :warn)
+(l/set-level! :info)
 
 (defn- req [m u c b f]
   {
@@ -127,7 +127,7 @@
       }]
     }
   }
-  })
+})
 
 (let [rsp-1 (core/sim-rsp protean-home get-sample-simple cdx-3 {})]
   (expect 400 (:status rsp-1)))
@@ -180,14 +180,40 @@
 
 ;; matrix-parameter sim extension
 
+(def cdx-6 {
+  "gu" {
+    "groups${;groupFilter}" {
+      :get [{
+        :types {
+          :String "[a-zA-Z0-9]+",
+          :Date "(19|20)[0-9][0-9]\\-(0[1-9]|1[0-2])\\-(0[1-9]|([12][0-9]|3[01]))",
+          :Time "([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]",
+          :DateTime "(19|20)[0-9][0-9]\\-(0[1-9]|1[0-2])\\-(0[1-9]|([12][0-9]|3[01]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](Z|\\+[0-1][0-9]:[03]0)",
+          :Ip "((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)",
+          :Token "[0-9a-zA-Z]{15}"},
+        :vars {
+          "groupId" {:type :Int, :doc "Group Id"},
+          "city" {:type :String, :doc "City"},
+          ";groupFilter" {
+            :type :MatrixParams,
+            :doc "matrix parameters to filter groups. Valid parameters are: groupId (multiple), city (multiple)",
+            :struct {
+              "groupId" ["${groupId}" :required :multiple],
+              "city" ["${city}" :optional :multiple]}}},
+        :rsp {
+          :200 {:headers {"Content-Type" "application/json; charset=utf-8"}},
+          :400 {:headers {"Content-Type" "application/json; charset=utf-8"}}
+        }
+      }]
+    }
+  }
+})
+
 (def sim-3 (clojure.main/load-script "test-data/matrix-params.sim.edn"))
 
-; (let [cdx (r/read-codex (dsk/pwd) (file "test-data/matrix-params.edn"))
-;       rsp-1 (core/sim-rsp protean-home (req :get "/gu/groups;groupId=2143759047;city=Glasgow" h/txt body nil) cdx {})
-;       ; rsp-2 (core/sim-rsp protean-home (req :get "/gu/groups;groupId=1" h/txt body nil) cdx {})
-;       ]
-;   (expect 200 (:status rsp-1))
-;   (expect "application/json; charset=utf-8" (get-in rsp-1 [:headers "Content-Type"]))
-;   (expect "{\"groupId\":\"2143759047\",\"city\":\"Glasgow\"}" (:body rsp-1))
-;   ; (expect 400 (:status rsp-2)))
-; )
+(let [rsp-1 (core/sim-rsp protean-home (req :get "/gu/groups;groupId=2143759047;city=Glasgow" h/txt body nil) cdx-6 sim-3)
+      rsp-2 (core/sim-rsp protean-home (req :get "/gu/groups" h/txt body nil) cdx-6 sim-3)]
+  (expect 200 (:status rsp-1))
+  (expect "application/json; charset=utf-8" (get-in rsp-1 [:headers "Content-Type"]))
+  (expect "{\"groupId\":\"2143759047\",\"city\":\"Glasgow\"}" (:body rsp-1))
+  (expect 400 (:status rsp-2)))

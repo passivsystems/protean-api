@@ -49,7 +49,6 @@
 (defn- map-vals [m k] (set (keep k (tree-seq #(or (map? %) (vector? %)) identity m))))
 
 (defn- validate-xml-body [{:keys [body]} schema codex-body]
-  (println "xml schema : " schema)
   (if schema
     (let [validation (xv/validate schema body)]
       (when (not (:success validation))

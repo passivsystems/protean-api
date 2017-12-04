@@ -3,7 +3,9 @@
 {
   "gu" {
     "groups${;groupFilter}" {
-      :get #(respond % 200 (matrix-params % "groupFilter"))
+      :get #(if (validate %)
+              (respond % 400)
+              (respond % 200 (matrix-params % "groupFilter")))
     }
   }
 }
