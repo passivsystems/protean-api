@@ -56,7 +56,7 @@
           abs-path (u/find dsk/exists? locations)]
       (if abs-path
         abs-path
-        (throw (Exception.
+        (throw (java.io.FileNotFoundException.
           (str "Could not find relative path: '" path "', looked in " locations)))))
     path))
 
