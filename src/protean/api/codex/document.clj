@@ -3,11 +3,7 @@
   (:require [me.rossputin.diskops :as dsk]
             [protean.utils :as u]
             [protean.api.protocol.http :as h]))
-
-(defn custom-keys
-  "returns only keys which are not keywords"
-  [c] (seq (remove keyword? (keys c))))
-
+            
 (defn to-seq
   "creates a sequence (for now aka 'tree' - needs renaming) that can be
    traversed to resolve required references in scope"

@@ -145,7 +145,6 @@
             request (sim-req req endpoint svc)
             execute (execute-fn protean-home tree requested-endpoint endpoint request sim-cfg)
             response (when tree (execute rules))]
-        (log/info "sim cfg:" sim-cfg)
         (log/info "executed" (if rules "sim extension rules" "default rules") "for uri:" uri "(svc:" svc "endpoint:" endpoint "method:" method ")")
         ; TODO validate response structure
         (log/info "responding with :status" (:status response) ":header" (:header response) ":body" (:body response))
