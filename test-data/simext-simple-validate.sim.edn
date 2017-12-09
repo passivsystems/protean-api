@@ -2,6 +2,7 @@
   (:require [protean.api.transformation.sim :refer :all]))
 
 {
+  :sim-cfg {:validating false}
   "sample" {
     "simple" {
       :get #(if-let [errs (validate %)] (respond % 400 errs) (respond % 200))

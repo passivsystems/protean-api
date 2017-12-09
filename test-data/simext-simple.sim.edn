@@ -4,7 +4,7 @@
 {
   "sample" {
     "simple" {
-      :get #(respond % 400)
+      :get #(respond % 418)
     }
   }
 }
