@@ -131,7 +131,10 @@
         requested-endpoint (if (> (count req-ep-raw) 1) (second req-ep-raw) "/")
         endpoint (to-endpoint requested-endpoint paths svc)
         method (:request-method req)
-        sim-cfg (:sim-cfg sims)
+        sim-cfg (merge (:sim-cfg sims)
+                       (get-in sims [svc :sim-cfg])
+                       (get-in sims [svc endpoint :sim-cfg])
+                       (get-in sims [svc endpoint method :sim-cfg]))
         tree (if-let [x (get-in paths [svc endpoint method])]
                x
                (when (= method :options) (http-options paths svc endpoint sim-cfg)))]
