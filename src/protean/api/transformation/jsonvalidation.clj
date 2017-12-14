@@ -1,10 +1,7 @@
 (ns protean.api.transformation.jsonvalidation
   "Tools for validating json/xml."
   (:import [com.fasterxml.jackson.databind ObjectMapper]
-           [com.github.fge.jsonschema.main JsonSchemaFactory]
-           [com.github.fge.jsonschema.load.configuration LoadingConfiguration]
-           [com.github.fge.jsonschema.load.uri URITransformer]))
-; Based on: https://github.com/bripkens/json-schema-validation-example/blob/master/src/json_schema_validation/core.clj
+           [com.github.fge.jsonschema.main JsonSchemaFactory]))
 
 (def
   ^{:private true
@@ -12,16 +9,7 @@
          You can call (.getJsonSchema json-schema-factory <json-schema-node>)
          to retrieve a JsonSchema instance which can validate JSON."}
   json-schema-factory
-  (let [transformer (-> (URITransformer/newBuilder)
-                        (.setNamespace "resource:/schema/")
-                        .freeze)
-        loading-config (-> (LoadingConfiguration/newBuilder)
-                           (.setURITransformer transformer)
-                           .freeze)
-        factory (-> (JsonSchemaFactory/newBuilder)
-                    (.setLoadingConfiguration loading-config)
-                    .freeze)]
-    factory))
+  (JsonSchemaFactory/byDefault))
 
 (def
   ^{:private true
