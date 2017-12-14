@@ -81,7 +81,7 @@
     (let [with-validate (not (false? (:validating cfg)))
           success-rsp (map #(format-rsp protean-home tree %) (into {} (d/success-status tree)))
           error-rsp (map #(format-rsp protean-home tree %) (into {} (d/error-status tree)))
-          aug-req (merge (aug-path-params rep ep req) ;; TODO required?
+          aug-req (merge (aug-path-params rep ep req)
                          {:tree tree
                           :protean-home protean-home
                           :response {:success success-rsp :error error-rsp}})]

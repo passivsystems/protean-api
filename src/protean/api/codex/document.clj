@@ -3,7 +3,7 @@
   (:require [me.rossputin.diskops :as dsk]
             [protean.utils :as u]
             [protean.api.protocol.http :as h]))
-            
+
 (defn to-seq
   "creates a sequence (for now aka 'tree' - needs renaming) that can be
    traversed to resolve required references in scope"
@@ -81,15 +81,10 @@
 
 (defn mps
   "Get matrix parameters from codex."
-  [t include-optional]
-  (->> (tree-seq map? vals (first t))
-       (filter #(and (map? %) (contains? % :struct)))
-       first
-       :struct
+  [name t include-optional]
+  (->> (get-in-tree t [:vars name :struct])
        (map (partial f include-optional))
-       (map first)
-       (remove nil?)
-       (into #{})))
+       (into {})))
 
 (defn- codex-req-hdrs [tree]
   ; we don't use get-in-tree as we want to merge definitions in all scopes here

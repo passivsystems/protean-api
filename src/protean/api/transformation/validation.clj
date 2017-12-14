@@ -14,35 +14,36 @@
   (:import java.io.ByteArrayInputStream))
 
 (defn validate-status [expected-status payload]
-  (when (not (= (str (:status payload)) expected-status))
+  (when-not (= (str (:status payload)) expected-status)
     (str "expected status " expected-status " (was " (:status payload) ")")))
 
 (defn validate-headers [expected-headers payload]
   (when expected-headers
     (let [expected (set (map #(s/lower-case %) (keys expected-headers)))
           received (set (map #(s/lower-case %) (keys (:headers payload))))]
-      (when (not (subset? expected received))
-        (str "expected headers " (s/join "," expected) " (was " (s/join "," received) ")")))))
+      (when-not (subset? expected received)
+        (str "expected headers: " (s/join ", " expected) " (was " (s/join "," received) ")")))))
 
 (defn validate-query-params [request tree]
   (when-let [rpms (d/qps tree false)]
-    (let [expected-qps (keys rpms)
-          received-qps (map name (keys (:query-params request)))]
-      (when (not (every? (set received-qps) expected-qps))
-        (str "expected query params " expected-qps " (was " (s/join "," received-qps) ")")))))
+    (let [expected (set (keys rpms))
+          received (set (map name (keys (:query-params request))))]
+      (when-not (every? received expected)
+        (str "expected query params: " (s/join ", " expected) " (was " (s/join "," received) ")")))))
 
 (defn validate-form-params [request tree]
   (when-let [f-keys (d/fps tree false)]
-    (let [expected-form (keys f-keys)
-          received-form (keys (:form-params request))]
-      (when (not (every? (set received-form) expected-form))
-        (str "expected form params " expected-form " (was " received-form ")")))))
+    (let [expected (set (keys f-keys))
+          received (set (keys (:form-params request)))]
+      (when-not (every? received expected)
+        (str "expected form params: " (s/join ", " expected) " (was " (s/join "," received) ")")))))
 
 (defn validate-matrix-params [request tree]
-  (let [rmp (pp/matrix-params request)
-        cmp (d/mps tree false)]
-    (when-not (every? rmp cmp)
-      (str "expected matrix params " cmp " (was " rmp ")"))))
+  (let [names (filter #(s/starts-with? % ";") (keys (:path-params request)))
+        expected (set (keys (into {} (map #(d/mps % tree false) names))))
+        received (set (pp/matrix-params request))]
+    (when-not (every? received expected)
+      (str "expected matrix params: " (s/join ", " expected) " (was " (s/join "," received) ")"))))
 
 (defn- zip-str [s] (z/xml-zip (x/parse (ByteArrayInputStream. (.getBytes s)))))
 
@@ -51,7 +52,7 @@
 (defn- validate-xml-body [{:keys [body]} schema codex-body]
   (if schema
     (let [validation (xv/validate schema body)]
-      (when (not (:success validation))
+      (when-not (:success validation)
         (str "Xml body: " body "\ndid not conform to xml schema " schema " : " (:message validation))))
     (if codex-body
       (let [tags-in-str (fn [s] (map-vals (zip-str s) :tag))
@@ -63,7 +64,7 @@
 (defn- validate-jsn-body [{:keys [body]} schema codex-body]
   (if schema
     (let [validation (jv/validate schema body)]
-      (when (not (:success validation))
+      (when-not (:success validation)
         (str "Json body: " body "\ndid not conform to json schema " schema " : " (:message validation))))
     (when codex-body
       (try
@@ -71,7 +72,7 @@
           (if (map? codex-body)
             (let [expected-keys (set (keys codex-body))
                   received-keys (set (keys body-jsn))]
-              (when (not (= received-keys expected-keys))
+              (when-not (= received-keys expected-keys)
                 (str "Json body not valid - expected " expected-keys " but received " received-keys)))
             (contains? codex-body body-jsn)))
         (catch Exception e (str "Could not parse json:" body "\n" (.getMessage e)))))))
