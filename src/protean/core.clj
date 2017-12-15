@@ -39,7 +39,7 @@
   [req ep svc]
   (assoc req :endpoint ep :svc svc :body (or (dk/slurp-pun (:body req)) "")))
 
-(defn- protean-error-400 [errors] {:status 400 :headers {"Protean-error" "Bad Request" "Protean-error-messages"  errors}})
+(defn- protean-error-400 [msg] {:status 400 :headers {"Protean-error" "Bad Request" "Protean-error-messages" msg}})
 
 (defn- protean-error-404 [] {:status 404 :headers {"Protean-error" "Not Found"}})
 
@@ -87,7 +87,7 @@
                           :response {:success success-rsp :error error-rsp}})]
       (try
         (if-let [errors (and with-validate (sim/validate aug-req))]
-          (protean-error-400 errors)
+          (protean-error-400 (s/join ", " (vals errors)))
           (if rule
             (apply rule [aug-req])
             (first success-rsp)))
@@ -150,11 +150,11 @@
             response (when tree (execute rules))]
         (log/info "executed" (if rules "sim extension rules" "default rules") "for uri:" uri "(svc:" svc "endpoint:" endpoint "method:" method ")")
         ; TODO validate response structure
-        (log/info "responding with :status" (:status response) ":header" (:header response) ":body" (:body response))
+        (log/info "responding with :status" (:status response) ":header" (:headers response) ":body" (:body response))
         (if (map? response)
           (-> response
               (transform-cors sim-cfg)
               (serialise tree))
           (do
-            (u/print-error (Exception. (str "Response: " (or response "nil") " does not match structure {:status Int :header Vector :body String} - does your response comply with the codex ?")))
+            (u/print-error (Exception. (str "Response: " (or response "nil") " does not match structure {:status Int :headers Vector :body String} - does your response comply with the codex ?")))
             (protean-error-500)))))))

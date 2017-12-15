@@ -17,10 +17,10 @@
   (when-not (= (str (:status payload)) expected-status)
     (str "expected status " expected-status " (was " (:status payload) ")")))
 
-(defn validate-headers [expected-headers payload]
-  (when expected-headers
+(defn validate-headers [request tree]
+  (when-let [expected-headers (d/req-hdrs tree)]
     (let [expected (set (map #(s/lower-case %) (keys expected-headers)))
-          received (set (map #(s/lower-case %) (keys (:headers payload))))]
+          received (set (map #(s/lower-case %) (keys (:headers request))))]
       (when-not (subset? expected received)
         (str "expected headers: " (s/join ", " expected) " (was " (s/join "," received) ")")))))
 

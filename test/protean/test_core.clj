@@ -174,7 +174,7 @@
       rsp-2 (core/sim-rsp protean-home (req :get "/sample/complex" h/txt body nil) cdx-5 sim-2)]
   (expect 400 (:status rsp-1))
   (expect "application/json; charset=utf-8" (get-in rsp-1 [:headers "Content-Type"]))
-  (expect "[\"expected query params: rp1 (was )\"]" (:body rsp-1))
+  (expect "{\"query-errors\":\"expected query params: rp1 (was )\"}" (:body rsp-1))
   (expect 403 (:status rsp-2)))
 
 
