@@ -138,18 +138,18 @@
 ;; =============================================================================
 
 ;; defines a 400 response
-(def sims (clojure.main/load-script "test-data/simext-simple.sim.edn"))
+(def sims (clojure.main/load-script "test/resources/simext-simple.sim.edn"))
 
 ;; test we get a protean error 500 if response breaks codex contract
 ;; in this case we test against a codex which does not contain a 400 response
-(let [cdx (r/read-codex (dsk/pwd) (file "test-data/simext-simple.edn"))
+(let [cdx (r/read-codex (dsk/pwd) (file "test/resources/simext-simple.edn"))
       rsp (core/sim-rsp protean-home get-sample-simple cdx sims)]
   (expect 500 (:status rsp)))
 
 
 ;; validating sim extension
 
-(def sim-2 (clojure.main/load-script "test-data/simext-simple-validate.sim.edn"))
+(def sim-2 (clojure.main/load-script "test/resources/simext-simple-validate.sim.edn"))
 
 (def cdx-5 {
   "sample" {
@@ -209,7 +209,7 @@
   }
 })
 
-(def sim-3 (clojure.main/load-script "test-data/matrix-params.sim.edn"))
+(def sim-3 (clojure.main/load-script "test/resources/matrix-params.sim.edn"))
 
 (let [rsp-1 (core/sim-rsp protean-home (req :get "/gu/groups;groupId=2143759047;city=Glasgow" h/txt body nil) cdx-6 sim-3)
       rsp-2 (core/sim-rsp protean-home (req :get "/gu/groups" h/txt body nil) cdx-6 sim-3)]
