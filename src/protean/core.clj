@@ -78,7 +78,8 @@
    req is the request"
   [protean-home tree rep ep req cfg]
   (fn [rule]
-    (let [with-validate (not (false? (:validating cfg)))
+    (let [validate? (not (false? (:validate? cfg)))
+          validate-rule (:validate-rule cfg)
           success-rsp (map #(format-rsp protean-home tree %) (into {} (d/success-status tree)))
           error-rsp (map #(format-rsp protean-home tree %) (into {} (d/error-status tree)))
           aug-req (merge (aug-path-params rep ep req)
@@ -86,11 +87,13 @@
                           :protean-home protean-home
                           :response {:success success-rsp :error error-rsp}})]
       (try
-        (if-let [errors (and with-validate (sim/validate aug-req))]
-          (protean-error-400 (s/join ", " (vals errors)))
-          (if rule
-            (apply rule [aug-req])
-            (first success-rsp)))
+        (if (and validate? (not (nil? validate-rule)))
+          (apply validate-rule [aug-req rule])
+          (if-let [errors (and validate? (sim/validate aug-req))]
+            (protean-error-400 (s/join ", " (vals errors)))
+            (if rule
+              (apply rule [aug-req])
+              (first success-rsp))))
         (catch Exception e  (u/print-error e) (protean-error-500))))))
 
 (defn- transform-cors

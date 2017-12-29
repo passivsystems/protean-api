@@ -1,5 +1,6 @@
 (ns protean.test-core
   (:require [clojure.java.io :refer [file]]
+            [clojure.string :as s]
             [protean.core :as core]
             [protean.api.protocol.http :as h]
             [protean.api.codex.reader :as r]
@@ -12,28 +13,31 @@
 (l/set-level! :info)
 
 (defn- req [m u c b f]
-  {
-    :ssl-client-cert nil
-    :remote-addr "127.0.0.1"
-    :params {:* u}
-    :route-params {:* u}
-    :headers {"user-agent" "curl/7.29.0"
-              "content-type" c
-              "accept" "*/*"
-              "host" "localhost:3000"}
-    :server-port 3000
-    :content-length nil
-    :form-params (or f {})
-    :query-params {}
-    :content-type nil
-    :character-encoding nil
-    :uri u
-    :server-name "localhost"
-    :query-string nil
-    :body b
-    :scheme :http
-    :request-method m
-  })
+  (let [items (s/split u #"[?&]")
+        uri (first items)
+        qps (into {} (map #(s/split % #"=") (rest items)))]
+    {
+      :ssl-client-cert nil
+      :remote-addr "127.0.0.1"
+      :params {:* uri}
+      :route-params {:* uri}
+      :headers {"user-agent" "curl/7.29.0"
+                "content-type" c
+                "accept" "*/*"
+                "host" "localhost:3000"}
+      :server-port 3000
+      :content-length nil
+      :form-params (or f {})
+      :query-params qps
+      :content-type nil
+      :character-encoding nil
+      :uri uri
+      :server-name "localhost"
+      :query-string nil
+      :body b
+      :scheme :http
+      :request-method m
+    }))
 
 (def body (.getBytes "" "UTF-8"))
 
@@ -120,7 +124,7 @@
   "sample" {
     "simple" {
       :get [{
-        :validating true
+        :validate? true
         :vars {"rp1" {:type :String :doc "A test request param"}}
         :req {:query-params {"rp1" ["${rp1}" :required]}}
         :rsp {:200 {}}
@@ -167,15 +171,28 @@
         :rsp {:200 {} :403 {}}
       }]
     }
+    "override" {
+      :get [{
+        :vars {"rp1" {:type :String :doc "A test request param"}}
+        :req {:query-params {"rp1" ["${rp1}" :required]}}
+        :rsp {:200 {} :403 {}}
+      }]
+    }
   }
 })
 
 (let [rsp-1 (core/sim-rsp protean-home get-sample-simple cdx-5 sim-2)
-      rsp-2 (core/sim-rsp protean-home (req :get "/sample/complex" h/txt body nil) cdx-5 sim-2)]
+      rsp-2 (core/sim-rsp protean-home (req :get "/sample/complex" h/txt body nil) cdx-5 sim-2)
+      rsp-3 (core/sim-rsp protean-home (req :get "/sample/complex?rp1=1" h/txt body nil) cdx-5 sim-2)
+      rsp-4 (core/sim-rsp protean-home (req :get "/sample/override" h/txt body nil) cdx-5 sim-2)
+      rsp-5 (core/sim-rsp protean-home (req :get "/sample/override?rp1=1" h/txt body nil) cdx-5 sim-2)]
   (expect 400 (:status rsp-1))
   (expect "application/json; charset=utf-8" (get-in rsp-1 [:headers "Content-Type"]))
   (expect "{\"query-errors\":\"expected query params: rp1 (was )\"}" (:body rsp-1))
-  (expect 403 (:status rsp-2)))
+  (expect 403 (:status rsp-2))
+  (expect 200 (:status rsp-3))
+  (expect 403 (:status rsp-4))
+  (expect 200 (:status rsp-5)))
 
 
 ;; matrix-parameter sim extension

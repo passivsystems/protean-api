@@ -2,13 +2,30 @@
   (:require [protean.api.transformation.sim :refer :all]))
 
 {
-  :sim-cfg {:validating false}
+  :sim-cfg {:validate? false}
   "sample" {
     "simple" {
       :get #(if-let [errs (validate %)] (respond % 400 errs) (respond % 200))
     }
     "complex" {
-      :get #(if (validate %) (respond % 403) (respond % 200))
+      :get #(let [errs (validate %)]
+              (cond
+                (:query-errors errs) (respond % 403)
+                errs                 (respond % 400 errs)
+                :else                (respond % 200)))
+    }
+    "override" {
+      :sim-cfg {
+        :validate? true
+        :validate-rule (fn [request rule]
+                         (let [errs (validate request)]
+                           (cond
+                             (:query-errors errs) (respond request 403)
+                             errs                 (respond request 400 errs)
+                             rule                 (apply rule [request])
+                             :else                (respond request 200))))
+      }
+      :get #(respond % 200)
     }
   }
 }
