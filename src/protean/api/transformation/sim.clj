@@ -139,10 +139,10 @@
   "Validate request against codex specification"
   [request]
   (let [{:keys [tree protean-home]} request
-        raw {:header-errors (v/validate-headers request tree)
-             :query-errors (v/validate-query-params request tree)
-             :form-errors (v/validate-form-params request tree)
-             :matrix-errors (v/validate-matrix-params request tree)
+        raw {:header-errors (v/validate-headers request)
+             :query-errors (v/validate-query-params request)
+             :form-errors (v/validate-form-params request)
+             :matrix-errors (v/validate-matrix-params request)
              :body-errors (body-errors request protean-home tree)}
         errors (into {} (remove (fn [[k v]] (nil? v)) raw))]
     (when-not (empty? errors)

@@ -1,5 +1,6 @@
 (ns protean.test.simplesim
-  (:require [protean.api.transformation.sim :refer :all]))
+  (:require [clojure.string :as s]
+            [protean.api.transformation.sim :refer :all]))
 
 {
   :sim-cfg {:validate? false}
@@ -7,12 +8,8 @@
     "simple" {
       :get #(if-let [errs (validate %)] (respond % 400 errs) (respond % 200))
     }
-    "complex" {
-      :get #(let [errs (validate %)]
-              (cond
-                (:query-errors errs) (respond % 403)
-                errs                 (respond % 400 errs)
-                :else                (respond % 200)))
+    "bespoke" {
+      :get #(if (:query-errors (validate %)) (respond % 403) (respond % 200))
     }
     "override" {
       :sim-cfg {
@@ -21,11 +18,17 @@
                          (let [errs (validate request)]
                            (cond
                              (:query-errors errs) (respond request 403)
-                             errs                 (respond request 400 errs)
                              rule                 (apply rule [request])
                              :else                (respond request 200))))
       }
       :get #(respond % 200)
+    }
+    "auth" {
+      :get #(let [errs (validate %)]
+              (cond
+                (s/includes? (str (:header-errors errs)) "expected headers: authorization") (respond % 401)
+                (:header-errors errs)                                                       (respond % 403)
+                :else                                                                       (respond % 200)))
     }
   }
 }

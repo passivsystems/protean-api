@@ -12,7 +12,7 @@
 
 (l/set-level! :info)
 
-(defn- req [m u c b f]
+(defn- req [m u h b f]
   (let [items (s/split u #"[?&]")
         uri (first items)
         qps (into {} (map #(s/split % #"=") (rest items)))]
@@ -21,10 +21,11 @@
       :remote-addr "127.0.0.1"
       :params {:* uri}
       :route-params {:* uri}
-      :headers {"user-agent" "curl/7.29.0"
-                "content-type" c
-                "accept" "*/*"
-                "host" "localhost:3000"}
+      :headers (merge {"user-agent" "curl/7.29.0"
+                       "content-type" h/txt
+                       "accept" "*/*"
+                       "host" "localhost:3000"}
+                      h)
       :server-port 3000
       :content-length nil
       :form-params (or f {})
@@ -41,7 +42,7 @@
 
 (def body (.getBytes "" "UTF-8"))
 
-(def get-sample-simple (req :get "/sample/simple" h/txt body nil))
+(def get-sample-simple (req :get "/sample/simple" nil body nil))
 
 ;; =============================================================================
 ;; Simple methods statuses and headers
@@ -109,7 +110,7 @@
   }
 })
 
-(let [rsp-1 (core/sim-rsp protean-home (req :get "/sample/simple/1" h/txt body nil) cdx-2 {})
+(let [rsp-1 (core/sim-rsp protean-home (req :get "/sample/simple/1" nil body nil) cdx-2 {})
       rsp-2 (core/sim-rsp protean-home get-sample-simple cdx-2 {})]
   (expect 200 (:status rsp-1))
   (expect 404 (:status rsp-2))
@@ -125,6 +126,7 @@
     "simple" {
       :get [{
         :validate? true
+        :types {:String "[a-zA-Z0-9]+"}
         :vars {"rp1" {:type :String :doc "A test request param"}}
         :req {:query-params {"rp1" ["${rp1}" :required]}}
         :rsp {:200 {}}
@@ -159,13 +161,15 @@
   "sample" {
     "simple" {
       :get [{
+        :types {:String "[a-zA-Z0-9]+"}
         :vars {"rp1" {:type :String :doc "A test request param"}}
         :req {:query-params {"rp1" ["${rp1}" :required]}}
         :rsp {:200 {} :400 {:headers {"Content-Type" "application/json; charset=utf-8"}}}
       }]
     }
-    "complex" {
+    "bespoke" {
       :get [{
+        :types {:String "[a-zA-Z0-9]+"}
         :vars {"rp1" {:type :String :doc "A test request param"}}
         :req {:query-params {"rp1" ["${rp1}" :required]}}
         :rsp {:200 {} :403 {}}
@@ -173,27 +177,41 @@
     }
     "override" {
       :get [{
+        :types {:String "[a-zA-Z0-9]+"}
         :vars {"rp1" {:type :String :doc "A test request param"}}
         :req {:query-params {"rp1" ["${rp1}" :required]}}
         :rsp {:200 {} :403 {}}
+      }]
+    }
+    "auth" {
+      :get [{
+        :types {:Token "[0-9a-zA-Z0-9]{15}"}
+        :vars {"bearerToken" {:type :Token :examples ["08d2301e-ee81-4654-b448-0636f454612a"]}}
+        :req {:headers {"Authorization" "Bearer ${bearerToken}"}}
+        :rsp {:200 {} :401 {} :403 {}}
       }]
     }
   }
 })
 
 (let [rsp-1 (core/sim-rsp protean-home get-sample-simple cdx-5 sim-2)
-      rsp-2 (core/sim-rsp protean-home (req :get "/sample/complex" h/txt body nil) cdx-5 sim-2)
-      rsp-3 (core/sim-rsp protean-home (req :get "/sample/complex?rp1=1" h/txt body nil) cdx-5 sim-2)
-      rsp-4 (core/sim-rsp protean-home (req :get "/sample/override" h/txt body nil) cdx-5 sim-2)
-      rsp-5 (core/sim-rsp protean-home (req :get "/sample/override?rp1=1" h/txt body nil) cdx-5 sim-2)]
+      rsp-2 (core/sim-rsp protean-home (req :get "/sample/bespoke" nil body nil) cdx-5 sim-2)
+      rsp-3 (core/sim-rsp protean-home (req :get "/sample/bespoke?rp1=1" nil body nil) cdx-5 sim-2)
+      rsp-4 (core/sim-rsp protean-home (req :get "/sample/override" nil body nil) cdx-5 sim-2)
+      rsp-5 (core/sim-rsp protean-home (req :get "/sample/override?rp1=1" nil body nil) cdx-5 sim-2)
+      rsp-6 (core/sim-rsp protean-home (req :get "/sample/auth" {} body nil) cdx-5 sim-2)
+      rsp-7 (core/sim-rsp protean-home (req :get "/sample/auth" {"Authorization" "Bearer xxx"} body nil) cdx-5 sim-2)
+      rsp-8 (core/sim-rsp protean-home (req :get "/sample/auth" {"Authorization" "Bearer abcdefghicklmno"} body nil) cdx-5 sim-2)]
   (expect 400 (:status rsp-1))
   (expect "application/json; charset=utf-8" (get-in rsp-1 [:headers "Content-Type"]))
   (expect "{\"query-errors\":\"expected query params: rp1 (was )\"}" (:body rsp-1))
   (expect 403 (:status rsp-2))
   (expect 200 (:status rsp-3))
   (expect 403 (:status rsp-4))
-  (expect 200 (:status rsp-5)))
-
+  (expect 200 (:status rsp-5))
+  (expect 401 (:status rsp-6))
+  (expect 403 (:status rsp-7))
+  (expect 200 (:status rsp-8)))
 
 ;; matrix-parameter sim extension
 
@@ -202,12 +220,8 @@
     "groups${;groupFilter}" {
       :get [{
         :types {
-          :String "[a-zA-Z0-9]+",
-          :Date "(19|20)[0-9][0-9]\\-(0[1-9]|1[0-2])\\-(0[1-9]|([12][0-9]|3[01]))",
-          :Time "([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]",
-          :DateTime "(19|20)[0-9][0-9]\\-(0[1-9]|1[0-2])\\-(0[1-9]|([12][0-9]|3[01]))T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](Z|\\+[0-1][0-9]:[03]0)",
-          :Ip "((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)",
-          :Token "[0-9a-zA-Z]{15}"},
+          :Int "^-?\\d{1,10}$"
+          :String "[a-zA-Z0-9]+"}
         :vars {
           "groupId" {:type :Int, :doc "Group Id"},
           "city" {:type :String, :doc "City"},
@@ -228,8 +242,8 @@
 
 (def sim-3 (clojure.main/load-script "test/resources/matrix-params.sim.edn"))
 
-(let [rsp-1 (core/sim-rsp protean-home (req :get "/gu/groups;groupId=2143759047;city=Glasgow" h/txt body nil) cdx-6 sim-3)
-      rsp-2 (core/sim-rsp protean-home (req :get "/gu/groups" h/txt body nil) cdx-6 sim-3)]
+(let [rsp-1 (core/sim-rsp protean-home (req :get "/gu/groups;groupId=2143759047;city=Glasgow" nil body nil) cdx-6 sim-3)
+      rsp-2 (core/sim-rsp protean-home (req :get "/gu/groups" nil body nil) cdx-6 sim-3)]
   (expect 200 (:status rsp-1))
   (expect "application/json; charset=utf-8" (get-in rsp-1 [:headers "Content-Type"]))
   (expect "{\"groupId\":\"2143759047\",\"city\":\"Glasgow\"}" (:body rsp-1))
