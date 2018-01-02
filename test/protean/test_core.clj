@@ -220,7 +220,6 @@
     "groups${;groupFilter}" {
       :get [{
         :types {
-          :Int "^-?\\d{1,10}$"
           :String "[a-zA-Z0-9]+"}
         :vars {
           "groupId" {:type :Int, :doc "Group Id"},

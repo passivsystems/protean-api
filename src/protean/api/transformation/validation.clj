@@ -14,20 +14,33 @@
             [protean.api.transformation.xmlvalidation :as xv])
   (:import java.io.ByteArrayInputStream))
 
-(defn- to-regex
+(defn- regex
+  [tree n]
+  (let [t (d/get-in-tree tree [:vars n :type])
+        p (d/get-in-tree tree [:types t])]
+    (cond
+      p              p
+      (= t :Int)     "^-?\\d{1,10}$"
+      (= t :Long)    "^-?\\d{1,19}$"
+      (= t :Double)  "^(-?)(0|([1-9][0-9]*))(\\.[0-9]+)?$"
+      (= t :Boolean) "[true|false]"
+      (= t :Uuid)    "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}"
+      (= t :Json)    "^[{].*[}]"
+      :else          "")))
+
+(defn- regex-pattern
   [tree v]
-  (let [lookup #(str (d/get-in-tree tree [:types (d/get-in-tree tree [:vars % :type])]))]
-    (loop [s v items (re-seq ph/ph v)]
-      (if items
-        (let [[[p n]] items] (recur (s/replace s p (lookup n)) (next items)))
-        (re-pattern s)))))
+  (loop [s v items (re-seq ph/ph v)]
+    (if items
+      (let [[[p n]] items] (recur (s/replace s p (regex tree n)) (next items)))
+      (re-pattern s))))
 
 (defn- invalid-values
   [expectations tree items]
   (let [invalid (fn [pattern value]
                   (when (and pattern (nil? (re-matches pattern value)))
                     (str " value: '" value "' does not match: " pattern)))
-        patterns (into {} (for [[k v] expectations] {k (to-regex tree v)}))
+        patterns (into {} (for [[k v] expectations] {k (regex-pattern tree v)}))
         all (merge-with invalid patterns (select-keys items (keys patterns)))]
     (into {} (remove (fn [[k v]] (nil? v)) all))))
 
@@ -37,9 +50,10 @@
 
 (defn validate-headers
   [{:keys [headers tree]}]
-  (when-let [expected-hdrs (d/req-hdrs tree)]
-    (let [expected (set (map #(s/lower-case %) (keys expected-hdrs)))
-          received (set (map #(s/lower-case %) (keys headers)))
+  (when-let [expected-hdrs (into {} (for [[k v] (d/req-hdrs tree)] {(s/lower-case k) v}))]
+    (let [headers  (into {} (for [[k v] headers] {(s/lower-case k) v}))
+          expected (set (keys expected-hdrs))
+          received (set (keys headers))
           invalids (invalid-values expected-hdrs tree headers)]
       (cond
         (not (subset? expected received)) (str "expected headers: " (s/join ", " expected) " (was " (s/join "," received) ")")
