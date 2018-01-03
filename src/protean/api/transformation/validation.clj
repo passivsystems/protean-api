@@ -48,51 +48,35 @@
   (when-not (= (str (:status payload)) expected-status)
     (str "expected status " expected-status " (was " (:status payload) ")")))
 
+(defn validate
+  [vtype tree expected-items received-items]
+  (let [expected (set (keys expected-items))
+        received (set (keys received-items))
+        invalids (invalid-values expected-items tree received-items)]
+    (cond
+      (not (subset? expected received)) (str "expected " vtype ": " (s/join ", " expected) " (was " (s/join "," received) ")")
+      (not (empty? invalids))           (str "invalid "  vtype ": " (s/join ", " (map (fn [[k v]] (str k v)) invalids)))
+      :else nil)))
+
 (defn validate-headers
   [{:keys [headers tree]}]
-  (when-let [expected-hdrs (into {} (for [[k v] (d/req-hdrs tree)] {(s/lower-case k) v}))]
-    (let [headers  (into {} (for [[k v] headers] {(s/lower-case k) v}))
-          expected (set (keys expected-hdrs))
-          received (set (keys headers))
-          invalids (invalid-values expected-hdrs tree headers)]
-      (cond
-        (not (subset? expected received)) (str "expected headers: " (s/join ", " expected) " (was " (s/join "," received) ")")
-        (not (empty? invalids)) (str "invalid headers: " (s/join ", " (map (fn [[k v]] (str k v)) invalids)))
-        :else nil))))
+  (validate "headers" tree
+    (into {} (for [[k v] (d/req-hdrs tree)] {(s/lower-case k) v}))
+    (into {} (for [[k v] headers] {(s/lower-case k) v}))))
 
 (defn validate-query-params
   [{:keys [query-params tree]}]
-  (when-let [expected-qps (d/qps tree false)]
-    (let [expected (set (keys expected-qps))
-          received (set (map name (keys query-params)))
-          invalids (invalid-values expected-qps tree query-params)]
-      (cond
-        (not (every? received expected)) (str "expected query params: " (s/join ", " expected) " (was " (s/join "," received) ")")
-        (not (empty? invalids)) (str "invalid query params: " (s/join ", " (map (fn [[k v]] (str k v)) invalids)))
-        :else nil))))
+  (validate "query params" tree (d/qps tree false) query-params))
 
 (defn validate-form-params
   [{:keys [form-params tree]}]
-  (when-let [expected-fps (d/fps tree false)]
-    (let [expected (set (keys expected-fps))
-          received (set (keys form-params))
-          invalids (invalid-values expected-fps tree form-params)]
-      (cond
-        (not (every? received expected)) (str "expected form params: " (s/join ", " expected) " (was " (s/join "," received) ")")
-        (not (empty? invalids)) (str "invalid form params: " (s/join ", " (map (fn [[k v]] (str k v)) invalids)))
-        :else nil))))
+  (validate "form params" tree (d/fps tree false) form-params))
 
 (defn validate-matrix-params
   [{:keys [uri path-params tree] :as request}]
-  (when-let [expected-mps (into {} (map #(d/mps % tree false) (filter #(s/starts-with? % ";") (keys path-params))))]
-    (let [matrix-params (into {} (map #(s/split % #"=") (rest (s/split uri #";"))))
-          expected (set (keys expected-mps))
-          received (set (keys matrix-params))
-          invalids (invalid-values expected-mps tree matrix-params)]
-      (cond
-        (not (every? received expected)) (str "expected matrix params: " (s/join ", " expected) " (was " (s/join "," received) ")")
-        (not (empty? invalids)) (str "invalid matrix params: " (s/join ", " (map (fn [[k v]] (str k v)) invalids)))
-        :else nil))))
+  (validate "matrix params" tree
+    (into {} (map #(d/mps % tree false) (filter #(s/starts-with? % ";") (keys path-params))))
+    (into {} (map #(s/split % #"=") (rest (s/split uri #";"))))))
 
 (defn- zip-str [s] (z/xml-zip (x/parse (ByteArrayInputStream. (.getBytes s)))))
 
