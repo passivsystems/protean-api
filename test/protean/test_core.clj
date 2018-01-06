@@ -162,8 +162,8 @@
     "simple" {
       :get [{
         :types {:String "[a-zA-Z0-9]+"}
-        :vars {"rp1" {:type :String :doc "A test request param"}}
-        :req {:query-params {"rp1" ["${rp1}" :required]}}
+        :vars {"rp1" {:type :String} "rp2" {:type :Int}}
+        :req {:query-params {"rp1" ["${rp1}" :required] "rp2" ["${rp2}" :optional]}}
         :rsp {:200 {} :400 {:headers {"Content-Type" "application/json; charset=utf-8"}}}
       }]
     }
@@ -195,23 +195,27 @@
 })
 
 (let [rsp-1 (core/sim-rsp protean-home get-sample-simple cdx-5 sim-2)
-      rsp-2 (core/sim-rsp protean-home (req :get "/sample/bespoke" nil body nil) cdx-5 sim-2)
-      rsp-3 (core/sim-rsp protean-home (req :get "/sample/bespoke?rp1=1" nil body nil) cdx-5 sim-2)
-      rsp-4 (core/sim-rsp protean-home (req :get "/sample/override" nil body nil) cdx-5 sim-2)
-      rsp-5 (core/sim-rsp protean-home (req :get "/sample/override?rp1=1" nil body nil) cdx-5 sim-2)
-      rsp-6 (core/sim-rsp protean-home (req :get "/sample/auth" {} body nil) cdx-5 sim-2)
-      rsp-7 (core/sim-rsp protean-home (req :get "/sample/auth" {"Authorization" "Bearer xxx"} body nil) cdx-5 sim-2)
-      rsp-8 (core/sim-rsp protean-home (req :get "/sample/auth" {"Authorization" "Bearer abcdefghicklmno"} body nil) cdx-5 sim-2)]
+      rsp-2 (core/sim-rsp protean-home (req :get "/sample/simple?rp1=1?rp2=bad" nil body nil) cdx-5 sim-2)
+      rsp-3 (core/sim-rsp protean-home (req :get "/sample/simple?rp1=1" nil body nil) cdx-5 sim-2)
+      rsp-4 (core/sim-rsp protean-home (req :get "/sample/bespoke" nil body nil) cdx-5 sim-2)
+      rsp-5 (core/sim-rsp protean-home (req :get "/sample/bespoke?rp1=1" nil body nil) cdx-5 sim-2)
+      rsp-6 (core/sim-rsp protean-home (req :get "/sample/override" nil body nil) cdx-5 sim-2)
+      rsp-7 (core/sim-rsp protean-home (req :get "/sample/override?rp1=1" nil body nil) cdx-5 sim-2)
+      rsp-8 (core/sim-rsp protean-home (req :get "/sample/auth" {} body nil) cdx-5 sim-2)
+      rsp-9 (core/sim-rsp protean-home (req :get "/sample/auth" {"Authorization" "Bearer xxx"} body nil) cdx-5 sim-2)
+      rsp-10 (core/sim-rsp protean-home (req :get "/sample/auth" {"Authorization" "Bearer abcdefghicklmno"} body nil) cdx-5 sim-2)]
   (expect 400 (:status rsp-1))
   (expect "application/json; charset=utf-8" (get-in rsp-1 [:headers "Content-Type"]))
   (expect "{\"query-errors\":\"expected query params: rp1 (was )\"}" (:body rsp-1))
-  (expect 403 (:status rsp-2))
+  (expect 400 (:status rsp-2))
   (expect 200 (:status rsp-3))
   (expect 403 (:status rsp-4))
   (expect 200 (:status rsp-5))
-  (expect 401 (:status rsp-6))
-  (expect 403 (:status rsp-7))
-  (expect 200 (:status rsp-8)))
+  (expect 403 (:status rsp-6))
+  (expect 200 (:status rsp-7))
+  (expect 401 (:status rsp-8))
+  (expect 403 (:status rsp-9))
+  (expect 200 (:status rsp-10)))
 
 ;; matrix-parameter sim extension
 

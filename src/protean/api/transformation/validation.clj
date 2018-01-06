@@ -29,53 +29,58 @@
       :else          "")))
 
 (defn- regex-pattern
-  [tree v]
+  [tree v multi?]
   (loop [s v items (re-seq ph/ph v)]
     (if items
       (let [[[p n]] items] (recur (s/replace s p (regex tree n)) (next items)))
       (re-pattern s))))
 
 (defn- invalid-values
-  [expectations tree items]
-  (let [invalid (fn [pattern value]
+  [params tree items]
+  (let [invalid (fn [value pattern]
                   (when (and pattern (nil? (re-matches pattern value)))
                     (str " value: '" value "' does not match: " pattern)))
-        patterns (into {} (for [[k v] expectations] {k (regex-pattern tree v)}))
-        all (merge-with invalid patterns (select-keys items (keys patterns)))]
-    (into {} (remove (fn [[k v]] (nil? v)) all))))
+        patterns (into {} (for [[k v] params]
+                            {k (regex-pattern tree (first v) (.contains v :multiple))}))
+        select-items (select-keys items (keys patterns))
+        select-patterns (select-keys patterns (keys items))
+        errors (merge-with invalid select-items select-patterns)]
+    (into {} (remove (fn [[k v]] (nil? v)) errors))))
 
-(defn validate-status [expected-status payload]
-  (when-not (= (str (:status payload)) expected-status)
-    (str "expected status " expected-status " (was " (:status payload) ")")))
-
-(defn validate
-  [vtype tree expected-items received-items]
-  (let [expected (set (keys expected-items))
+(defn- validate
+  [vtype tree params received-items]
+  (let [expected (set (keys (filter #(not (.contains (second %) :optional)) params)))
         received (set (keys received-items))
-        invalids (invalid-values expected-items tree received-items)]
+        invalids (invalid-values params tree received-items)]
     (cond
       (not (subset? expected received)) (str "expected " vtype ": " (s/join ", " expected) " (was " (s/join "," received) ")")
       (not (empty? invalids))           (str "invalid "  vtype ": " (s/join ", " (map (fn [[k v]] (str k v)) invalids)))
       :else nil)))
 
+(defn validate-status [expected-status payload]
+  (when-not (= (str (:status payload)) expected-status)
+    (str "expected status " expected-status " (was " (:status payload) ")")))
+
 (defn validate-headers
   [{:keys [headers tree]}]
+  (defn- update-keys [m f & args] (into {} (for [[k v] m] {(apply f k args) v})))
+  (defn- update-vals [m f & args] (into {} (for [[k v] m] {k (apply f v args)})))
   (validate "headers" tree
-    (into {} (for [[k v] (d/req-hdrs tree)] {(s/lower-case k) v}))
-    (into {} (for [[k v] headers] {(s/lower-case k) v}))))
+    (update-vals (update-keys (d/req-hdrs tree) s/lower-case) #(vector % :required))
+    (update-keys headers s/lower-case)))
 
 (defn validate-query-params
   [{:keys [query-params tree]}]
-  (validate "query params" tree (d/qps tree false) query-params))
+  (validate "query params" tree (d/get-in-tree tree [:req :query-params]) query-params))
 
 (defn validate-form-params
   [{:keys [form-params tree]}]
-  (validate "form params" tree (d/fps tree false) form-params))
+  (validate "form params" tree (d/get-in-tree tree [:req :form-params]) form-params))
 
 (defn validate-matrix-params
   [{:keys [uri path-params tree] :as request}]
   (validate "matrix params" tree
-    (into {} (map #(d/mps % tree false) (filter #(s/starts-with? % ";") (keys path-params))))
+    (into {} (map #(d/get-in-tree tree [:vars % :struct]) (filter #(s/starts-with? % ";") (keys path-params))))
     (into {} (map #(s/split % #"=") (rest (s/split uri #";"))))))
 
 (defn- zip-str [s] (z/xml-zip (x/parse (ByteArrayInputStream. (.getBytes s)))))
