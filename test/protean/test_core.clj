@@ -8,9 +8,12 @@
             [taoensso.timbre :as l]
             [me.rossputin.diskops :as dsk]))
 
-(def protean-home (dsk/pwd))
+(defn- sim-rsp [req cdx sim] (core/sim-rsp (dsk/pwd) req cdx sim))
 
 (l/set-level! :info)
+
+(def json-hdrs {"Access-Control-Allow-Origin" "*"
+                "Content-Type" "application/json; charset=utf-8"})
 
 (defn- req [m u h b f]
   (let [items (s/split u #"[?&]")
@@ -61,27 +64,29 @@
   }
 })
 
-(let [rsp-1 (core/sim-rsp protean-home get-sample-simple cdx-1 {})
-      rsp-2 (core/sim-rsp protean-home (req :head "/sample/simple" nil body nil) cdx-1 {})
-      rsp-3 (core/sim-rsp protean-home (req :put "/sample/simple" nil body nil) cdx-1 {})
-      rsp-4 (core/sim-rsp protean-home (req :post "/sample/simple" nil body nil) cdx-1 {})
-      rsp-5 (core/sim-rsp protean-home (req :delete "/sample/simple" nil body nil) cdx-1 {})
-      rsp-6 (core/sim-rsp protean-home (req :patch "/sample/simple" nil body nil) cdx-1 {})
-      rsp-7 (core/sim-rsp protean-home (req :get "/sample/404" nil body nil) cdx-1 {})
-      rsp-8 (core/sim-rsp protean-home (req :muppet "/sample/simple" nil body nil) cdx-1 {})]
-  (expect 200 (:status rsp-1))
-  (expect 200 (:status rsp-2))
-  (expect 2 (count (:headers rsp-2))) ;; account for CORS headers
-  (expect 204 (:status rsp-3))
-  (expect 201 (:status rsp-4))
-  (expect 2 (count (:headers rsp-4))) ;; account for CORS headers
-  (expect 204 (:status rsp-5))
-  (expect 204 (:status rsp-6))
-  (expect 404 (:status rsp-7))
-  (expect true (contains? (:headers rsp-7) "Protean-error"))
-  (expect 405 (:status rsp-8))
-  (expect true (contains? (:headers rsp-8) "Allow")))
+(expect {:status 200 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
+        (sim-rsp get-sample-simple cdx-1 {}))
 
+(expect {:status 200 :headers {"Access-Control-Allow-Origin" "*", "token" "aGVsbG8gc2FpbG9y"} :body nil}
+        (sim-rsp (req :head "/sample/simple" nil body nil) cdx-1 {}))
+
+(expect {:status 204 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
+        (sim-rsp (req :put "/sample/simple" nil body nil) cdx-1 {}))
+
+(expect {:status 201 :headers {"Access-Control-Allow-Origin" "*", "Location" "over here"} :body nil}
+        (sim-rsp (req :post "/sample/simple" nil body nil) cdx-1 {}))
+
+(expect {:status 204 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
+        (sim-rsp (req :delete "/sample/simple" nil body nil) cdx-1 {}))
+
+(expect {:status 204 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
+        (sim-rsp (req :patch "/sample/simple" nil body nil) cdx-1 {}))
+
+(expect {:status 404 :headers {"Protean-error" "Not Found"}}
+        (sim-rsp (req :get "/sample/404" nil body nil) cdx-1 {}))
+
+(expect {:status 405 :headers {"Protean-error" "Method Not Allowed", "Allow" "GET, HEAD, PUT, POST, DELETE, PATCH"}}
+        (sim-rsp (req :muppet "/sample/simple" nil body nil) cdx-1 {}))
 
 ;; =============================================================================
 ;; Parameters
@@ -110,12 +115,11 @@
   }
 })
 
-(let [rsp-1 (core/sim-rsp protean-home (req :get "/sample/simple/1" nil body nil) cdx-2 {})
-      rsp-2 (core/sim-rsp protean-home get-sample-simple cdx-2 {})]
-  (expect 200 (:status rsp-1))
-  (expect 404 (:status rsp-2))
-  (expect true (contains? (:headers rsp-2) "Protean-error")))
+(expect {:status 200 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
+        (sim-rsp (req :get "/sample/simple/1" nil body nil) cdx-2 {}))
 
+(expect {:status 404 :headers {"Protean-error" "Not Found"}}
+        (sim-rsp get-sample-simple cdx-2 {}))
 
 ;; =============================================================================
 ;; Validation
@@ -127,17 +131,19 @@
       :get [{
         :validate? true
         :types {:String "[a-zA-Z0-9]+"}
-        :vars {"rp1" {:type :String :doc "A test request param"}}
-        :req {:query-params {"rp1" ["${rp1}" :required]}}
+        :vars {"q1" {:type :String :doc "A test request param"}}
+        :req {:query-params {"q1" ["${q1}" :required]}}
         :rsp {:200 {}}
       }]
     }
   }
 })
 
-(let [rsp-1 (core/sim-rsp protean-home get-sample-simple cdx-3 {})]
-  (expect 400 (:status rsp-1)))
-
+(expect {:status 400
+         :headers {"Access-Control-Allow-Origin" "*"
+                   "Protean-error" "Bad Request"
+                   "Protean-error-messages" "expected query params: q1 (was )"}}
+        (sim-rsp get-sample-simple cdx-3 {}))
 
 ;; =============================================================================
 ;; Sim extension
@@ -148,9 +154,9 @@
 
 ;; test we get a protean error 500 if response breaks codex contract
 ;; in this case we test against a codex which does not contain a 400 response
-(let [cdx (r/read-codex (dsk/pwd) (file "test/resources/simext-simple.edn"))
-      rsp (core/sim-rsp protean-home get-sample-simple cdx sims)]
-  (expect 500 (:status rsp)))
+(let [cdx (r/read-codex (dsk/pwd) (file "test/resources/simext-simple.edn"))]
+  (expect {:status 500, :headers {"Protean-error" "Error in sim"}}
+          (sim-rsp get-sample-simple cdx sims)))
 
 
 ;; validating sim extension
@@ -162,24 +168,28 @@
     "simple" {
       :get [{
         :types {:String "[a-zA-Z0-9]+"}
-        :vars {"rp1" {:type :String} "rp2" {:type :Int}}
-        :req {:query-params {"rp1" ["${rp1}" :required] "rp2" ["${rp2}" :optional]}}
+        :vars {"q1" {:type :String}
+               "q2" {:type :Int}
+               "q3" {:type :Int}}
+        :req {:query-params {"q1" ["${q1}" :required]
+                             "q2" ["${q2}" :optional]
+                             "q3" ["${q3}" :optional :multiple]}}
         :rsp {:200 {} :400 {:headers {"Content-Type" "application/json; charset=utf-8"}}}
       }]
     }
     "bespoke" {
       :get [{
         :types {:String "[a-zA-Z0-9]+"}
-        :vars {"rp1" {:type :String :doc "A test request param"}}
-        :req {:query-params {"rp1" ["${rp1}" :required]}}
+        :vars {"q1" {:type :String :doc "A test request param"}}
+        :req {:query-params {"q1" ["${q1}" :required]}}
         :rsp {:200 {} :403 {}}
       }]
     }
     "override" {
       :get [{
         :types {:String "[a-zA-Z0-9]+"}
-        :vars {"rp1" {:type :String :doc "A test request param"}}
-        :req {:query-params {"rp1" ["${rp1}" :required]}}
+        :vars {"q1" {:type :String :doc "A test request param"}}
+        :req {:query-params {"q1" ["${q1}" :required]}}
         :rsp {:200 {} :403 {}}
       }]
     }
@@ -194,28 +204,55 @@
   }
 })
 
-(let [rsp-1 (core/sim-rsp protean-home get-sample-simple cdx-5 sim-2)
-      rsp-2 (core/sim-rsp protean-home (req :get "/sample/simple?rp1=1?rp2=bad" nil body nil) cdx-5 sim-2)
-      rsp-3 (core/sim-rsp protean-home (req :get "/sample/simple?rp1=1" nil body nil) cdx-5 sim-2)
-      rsp-4 (core/sim-rsp protean-home (req :get "/sample/bespoke" nil body nil) cdx-5 sim-2)
-      rsp-5 (core/sim-rsp protean-home (req :get "/sample/bespoke?rp1=1" nil body nil) cdx-5 sim-2)
-      rsp-6 (core/sim-rsp protean-home (req :get "/sample/override" nil body nil) cdx-5 sim-2)
-      rsp-7 (core/sim-rsp protean-home (req :get "/sample/override?rp1=1" nil body nil) cdx-5 sim-2)
-      rsp-8 (core/sim-rsp protean-home (req :get "/sample/auth" {} body nil) cdx-5 sim-2)
-      rsp-9 (core/sim-rsp protean-home (req :get "/sample/auth" {"Authorization" "Bearer xxx"} body nil) cdx-5 sim-2)
-      rsp-10 (core/sim-rsp protean-home (req :get "/sample/auth" {"Authorization" "Bearer abcdefghicklmno"} body nil) cdx-5 sim-2)]
-  (expect 400 (:status rsp-1))
-  (expect "application/json; charset=utf-8" (get-in rsp-1 [:headers "Content-Type"]))
-  (expect "{\"query-errors\":\"expected query params: rp1 (was )\"}" (:body rsp-1))
-  (expect 400 (:status rsp-2))
-  (expect 200 (:status rsp-3))
-  (expect 403 (:status rsp-4))
-  (expect 200 (:status rsp-5))
-  (expect 403 (:status rsp-6))
-  (expect 200 (:status rsp-7))
-  (expect 401 (:status rsp-8))
-  (expect 403 (:status rsp-9))
-  (expect 200 (:status rsp-10)))
+;; missing q1
+(expect {:status 400 :headers json-hdrs :body "{\"query-errors\":\"expected query params: q1 (was )\"}"}
+        (sim-rsp get-sample-simple cdx-5 sim-2))
+
+;; q2 is not an integer
+(expect {:status 400 :headers json-hdrs :body "{\"query-errors\":\"invalid query params: q2 value: 'bad' does not match: ^-?\\\\d{1,10}$\"}"}
+        (sim-rsp (req :get "/sample/simple?q1=1?q2=bad" nil body nil) cdx-5 sim-2))
+
+;; q3 is not a list of integers
+(expect {:status 400 :headers json-hdrs :body "{\"query-errors\":\"invalid query params: q3 value: 'a,b,c' does not match: ^-?\\\\d{1,10}$\"}"}
+        (sim-rsp (req :get "/sample/simple?q1=1?q2=1?q3=a,b,c" nil body nil) cdx-5 sim-2))
+
+;; q3 is using an invalid separator
+(expect {:status 400 :headers json-hdrs :body "{\"query-errors\":\"invalid query params: q3 value: '1;2;3' does not match: ^-?\\\\d{1,10}$\"}"}
+        (sim-rsp (req :get "/sample/simple?q1=1?q2=1?q3=1;2;3" nil body nil) cdx-5 sim-2))
+
+(expect {:status 200 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
+        (sim-rsp (req :get "/sample/simple?q1=1?q2=1?q3=1" nil body nil) cdx-5 sim-2))
+
+(expect {:status 200 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
+        (sim-rsp (req :get "/sample/simple?q1=1?q2=1?q3=1,2,3" nil body nil) cdx-5 sim-2))
+
+(expect {:status 200 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
+        (sim-rsp (req :get "/sample/simple?q1=1" nil body nil) cdx-5 sim-2))
+
+;; missing q1 - sim changes 400 to 403
+(expect {:status 403 :headers {"Access-Control-Allow-Origin" "*"}  :body nil}
+        (sim-rsp (req :get "/sample/bespoke" nil body nil) cdx-5 sim-2))
+
+(expect {:status 200 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
+        (sim-rsp (req :get "/sample/bespoke?q1=1" nil body nil) cdx-5 sim-2))
+
+;; missing q1 - sim changes 400 to 403
+(expect {:status 403 :headers {"Access-Control-Allow-Origin" "*"}  :body nil}
+        (sim-rsp (req :get "/sample/override" nil body nil) cdx-5 sim-2))
+
+(expect {:status 200 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
+        (sim-rsp (req :get "/sample/override?q1=1" nil body nil) cdx-5 sim-2))
+
+;; missing auth header - sim changes 400 to 401 when auth header is missing
+(expect {:status 401 :headers {"Access-Control-Allow-Origin" "*"}  :body nil}
+        (sim-rsp (req :get "/sample/auth" {} body nil) cdx-5 sim-2))
+
+;; invalid auth header - sim changes 400 to 403 when auth header is invalid
+(expect {:status 403 :headers {"Access-Control-Allow-Origin" "*"}  :body nil}
+        (sim-rsp (req :get "/sample/auth" {"Authorization" "Bearer xxx"} body nil) cdx-5 sim-2))
+
+(expect {:status 200 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
+        (sim-rsp (req :get "/sample/auth" {"Authorization" "Bearer abcdefghicklmno"} body nil) cdx-5 sim-2))
 
 ;; matrix-parameter sim extension
 
@@ -245,9 +282,10 @@
 
 (def sim-3 (clojure.main/load-script "test/resources/matrix-params.sim.edn"))
 
-(let [rsp-1 (core/sim-rsp protean-home (req :get "/gu/groups;groupId=2143759047;city=Glasgow" nil body nil) cdx-6 sim-3)
-      rsp-2 (core/sim-rsp protean-home (req :get "/gu/groups" nil body nil) cdx-6 sim-3)]
-  (expect 200 (:status rsp-1))
-  (expect "application/json; charset=utf-8" (get-in rsp-1 [:headers "Content-Type"]))
-  (expect "{\"groupId\":\"2143759047\",\"city\":\"Glasgow\"}" (:body rsp-1))
-  (expect 400 (:status rsp-2)))
+(expect {:status 200 :headers json-hdrs :body "{\"groupId\":\"2143759047\",\"city\":\"Glasgow\"}"}
+        (sim-rsp (req :get "/gu/groups;groupId=2143759047;city=Glasgow" nil body nil) cdx-6 sim-3))
+
+(expect {:status 400 :headers {"Access-Control-Allow-Origin" "*"
+                               "Protean-error" "Bad Request"
+                               "Protean-error-messages" "expected matrix params: groupId (was )"}}
+        (sim-rsp (req :get "/gu/groups" nil body nil) cdx-6 sim-3))

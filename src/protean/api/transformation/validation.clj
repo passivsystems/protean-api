@@ -29,7 +29,7 @@
       :else          "")))
 
 (defn- regex-pattern
-  [tree v multi?]
+  [tree v]
   (loop [s v items (re-seq ph/ph v)]
     (if items
       (let [[[p n]] items] (recur (s/replace s p (regex tree n)) (next items)))
@@ -38,11 +38,13 @@
 (defn- invalid-values
   [params tree items]
   (let [invalid (fn [value pattern]
-                  (when (and pattern (nil? (re-matches pattern value)))
-                    (str " value: '" value "' does not match: " pattern)))
-        patterns (into {} (for [[k v] params]
-                            {k (regex-pattern tree (first v) (.contains v :multiple))}))
-        select-items (select-keys items (keys patterns))
+                  (when (and pattern (empty? (filter #(re-matches pattern %) value)))
+                    (str " value: '" (s/join "," value) "' does not match: " pattern)))
+        patterns (into {} (for [[k v] params] {k (regex-pattern tree (first v))}))
+        select-items (into {} (for [[k v] (select-keys items (keys patterns))]
+                                (if (.contains (get params k) :multiple)
+                                  {k (s/split v #",")}
+                                  {k [v]})))
         select-patterns (select-keys patterns (keys items))
         errors (merge-with invalid select-items select-patterns)]
     (into {} (remove (fn [[k v]] (nil? v)) errors))))
