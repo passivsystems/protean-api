@@ -65,26 +65,11 @@
 ;; Codex request
 ;; =============================================================================
 
-(defn- f [include-optional [k [v & attr]]]
-  (if (or include-optional (not (contains? (into #{} attr) :optional)))
-    [k v]))
+(defn qps [t] (get-in-tree t [:req :query-params]))
 
-(defn qps [t include-optional]
-  (->> (get-in-tree t [:req :query-params])
-       (map (partial f include-optional))
-       (into {})))
+(defn fps [t] (get-in-tree t [:req :form-params]))
 
-(defn fps [t include-optional]
-  (->> (get-in-tree t [:req :form-params])
-       (map (partial f include-optional))
-       (into {})))
-
-(defn mps
-  "Get matrix parameters from codex."
-  [name t include-optional]
-  (->> (get-in-tree t [:vars name :struct])
-       (map (partial f include-optional))
-       (into {})))
+(defn mps [t name] (get-in-tree t [:vars name :struct]))
 
 (defn- codex-req-hdrs [tree]
   ; we don't use get-in-tree as we want to merge definitions in all scopes here
@@ -103,10 +88,11 @@
       body-example (h/mime body-example)
       body default-ctype)))
 
-(defn req-hdrs [tree]
+(defn req-hdrs
+  [tree]
   (let [ctype (req-ctype tree)
         ctype-hdr (if ctype {h/ctype ctype} {})]
-    (merge ctype-hdr (codex-req-hdrs tree))))
+    (u/update-vals (merge ctype-hdr (codex-req-hdrs tree)) #(vector % :required))))
 
 (defn body-req [t] (get-in-tree t [:req :body]))
 

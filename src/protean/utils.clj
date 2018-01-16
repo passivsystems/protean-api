@@ -12,3 +12,9 @@
 (defn print-error [e] (log/error (aa/red (str "caught exception: " (stacktrace e)))))
 
 (defn find [pred-fn xs] (first (filter pred-fn xs)))
+
+(defn update-keys [m f & args] (into {} (for [[k v] m] {(apply f k args) v})))
+
+(defn update-vals [m f & args] (into {} (for [[k v] m] {k (apply f v args)})))
+
+(defn remove-nils [m] (into {} (remove (fn [[k v]] (nil? v)) m)))

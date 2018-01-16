@@ -5,6 +5,7 @@
             [clojure.zip :as z]
             [clojure.data :as data]
             [cheshire.core :as jsn]
+            [protean.utils :as u]
             [protean.api.codex.document :as d]
             [protean.api.codex.placeholder :as ph]
             [protean.api.protocol.http :as h]
@@ -14,44 +15,23 @@
             [protean.api.transformation.xmlvalidation :as xv])
   (:import java.io.ByteArrayInputStream))
 
-(defn- regex
-  [tree n]
-  (let [t (d/get-in-tree tree [:vars n :type])
-        p (d/get-in-tree tree [:types t])]
-    (cond
-      p              p
-      (= t :Int)     "^-?\\d{1,10}$"
-      (= t :Long)    "^-?\\d{1,19}$"
-      (= t :Double)  "^(-?)(0|([1-9][0-9]*))(\\.[0-9]+)?$"
-      (= t :Boolean) "[true|false]"
-      (= t :Uuid)    "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}"
-      (= t :Json)    "^[{].*[}]"
-      :else          "")))
-
-(defn- regex-pattern
-  [tree v]
-  (loop [s v items (re-seq ph/ph v)]
-    (if items
-      (let [[[p n]] items] (recur (s/replace s p (regex tree n)) (next items)))
-      (re-pattern s))))
-
 (defn- invalid-values
   [params tree items]
   (let [invalid (fn [value pattern]
                   (when (and pattern (empty? (filter #(re-matches pattern %) value)))
                     (str " value: '" (s/join "," value) "' does not match: " pattern)))
-        patterns (into {} (for [[k v] params] {k (regex-pattern tree (first v))}))
+        patterns (into {} (for [[k v] params] {k (ph/regex-pattern tree (first v))}))
         select-items (into {} (for [[k v] (select-keys items (keys patterns))]
                                 (if (.contains (get params k) :multiple)
                                   {k (s/split v #",")}
                                   {k [v]})))
         select-patterns (select-keys patterns (keys items))
         errors (merge-with invalid select-items select-patterns)]
-    (into {} (remove (fn [[k v]] (nil? v)) errors))))
+    (u/remove-nils errors)))
 
 (defn- validate
   [vtype tree params received-items]
-  (let [expected (set (keys (filter #(not (.contains (second %) :optional)) params)))
+  (let [expected (set (keys (remove #(.contains (second %) :optional) params)))
         received (set (keys received-items))
         invalids (invalid-values params tree received-items)]
     (cond
@@ -64,25 +44,29 @@
     (str "expected status " expected-status " (was " (:status payload) ")")))
 
 (defn validate-headers
-  [{:keys [headers tree]}]
-  (defn- update-keys [m f & args] (into {} (for [[k v] m] {(apply f k args) v})))
-  (defn- update-vals [m f & args] (into {} (for [[k v] m] {k (apply f v args)})))
-  (validate "headers" tree
-    (update-vals (update-keys (d/req-hdrs tree) s/lower-case) #(vector % :required))
-    (update-keys headers s/lower-case)))
+  ([{:keys [headers tree] :as payload}]
+    (validate-headers (d/req-hdrs tree) payload))
+  ([expected-hdrs {:keys [headers tree]}]
+    (defn fix [v] (when v (s/replace v #"; charset=.*" "")))
+    (validate "headers" tree (-> (u/update-keys expected-hdrs s/lower-case)
+                                 (update "content-type" #(when % (update % 0 fix)))
+                                 u/remove-nils)
+                             (-> (u/update-keys headers s/lower-case)
+                                 (update "content-type" fix)
+                                 u/remove-nils))))
 
 (defn validate-query-params
   [{:keys [query-params tree]}]
-  (validate "query params" tree (d/get-in-tree tree [:req :query-params]) query-params))
+  (validate "query params" tree (d/qps tree) query-params))
 
 (defn validate-form-params
   [{:keys [form-params tree]}]
-  (validate "form params" tree (d/get-in-tree tree [:req :form-params]) form-params))
+  (validate "form params" tree (d/fps tree) form-params))
 
 (defn validate-matrix-params
   [{:keys [uri path-params tree] :as request}]
   (validate "matrix params" tree
-    (into {} (map #(d/get-in-tree tree [:vars % :struct]) (filter #(s/starts-with? % ";") (keys path-params))))
+    (into {} (map #(d/mps tree %) (filter #(s/starts-with? % ";") (keys path-params))))
     (into {} (map #(s/split % #"=") (rest (s/split uri #";"))))))
 
 (defn- zip-str [s] (z/xml-zip (x/parse (ByteArrayInputStream. (.getBytes s)))))
@@ -117,34 +101,11 @@
             (contains? codex-body body-jsn)))
         (catch Exception e (str "Could not parse json:" body "\n" (.getMessage e)))))))
 
-(defn parse-hdr [hdr]
-  (let [parse-qlf (fn [qlf] (when qlf
-                              (let [[k v _] (map s/trim (s/split qlf #"="))]
-                                {k v})))
-        [value rest] (s/split (str hdr) #";")
-        qlfs (into {} (parse-qlf rest))]
-      [(s/trim value) qlfs]))
-
-(defn- validate-ctype [expected-ctype actual-ctype]
-  (when expected-ctype
-    (let [[expected expected-qlfs](parse-hdr expected-ctype)
-          [actual actual-qlfs] (parse-hdr actual-ctype)
-          fix (fn [q] (assoc q "charset" (s/upper-case (str (or (get q "charset") "utf-8")))))]
-      (or
-        (not (= expected actual))
-        (first (data/diff (fix expected-qlfs) (fix actual-qlfs)))))))
-
-(defn validate-body [payload expected-ctype schema codex-body]
+(defn validate-body [payload schema codex-body]
   (if payload
     (let [ctype (pp/ctype payload)]
       (cond
-        (validate-ctype expected-ctype ctype)
-          (str "expected content-type " expected-ctype " (was " ctype ")")
-        (h/xml? ctype)
-          (validate-xml-body payload schema codex-body)
-        (h/txt? ctype)
-          nil
-        ; TODO should we validate that the ctype is set as json?
-        :else
-          (validate-jsn-body payload schema codex-body)))
+        (h/jsn? ctype) (validate-jsn-body payload schema codex-body)
+        (h/xml? ctype) (validate-xml-body payload schema codex-body)
+        :else          nil))
     (str "expected body but was empty")))

@@ -113,7 +113,7 @@
 
 (defn xml? [c] (= c xml))
 (defn txt? [c] (= c txt))
-
+(defn jsn? [c] (.startsWith (str c) jsn-simple))
 
 ;; Response
 ;;;;;;;;;;;

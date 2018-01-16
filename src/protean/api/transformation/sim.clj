@@ -130,10 +130,9 @@
 ;; =============================================================================
 
 (defn- body-errors [request protean-home tree]
-  (let [expected-ctype (d/req-ctype tree)
-        schema (d/to-path protean-home (d/get-in-tree tree [:req :body-schema]) tree)
+  (let [schema (d/to-path protean-home (d/get-in-tree tree [:req :body-schema]) tree)
         codex-body (d/body-req tree)]
-    (v/validate-body request expected-ctype schema codex-body)))
+    (v/validate-body request schema codex-body)))
 
 (defn validate
   "Validate request against codex specification"
