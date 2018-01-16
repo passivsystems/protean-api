@@ -156,6 +156,7 @@
         (log/info "responding with :status" (:status response) ":header" (:headers response) ":body" (:body response))
         (if (map? response)
           (-> response
+              (ph/swap tree {} :gen-all true)
               (transform-cors sim-cfg)
               (serialise tree))
           (do
