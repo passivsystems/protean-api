@@ -61,15 +61,20 @@
   [protean-home path tree]
   (to-path-dir protean-home path (get-in-tree tree [:codex-dir])))
 
+(defn- param-fix
+  "Vectors param if not of type collection and marks as required"
+  [params]
+  (u/update-vals params #(if (coll? %) % (vector % :required))))
+
 ;; =============================================================================
 ;; Codex request
 ;; =============================================================================
 
-(defn qps [t] (get-in-tree t [:req :query-params]))
+(defn qps [t] (param-fix (get-in-tree t [:req :query-params])))
 
-(defn fps [t] (get-in-tree t [:req :form-params]))
+(defn fps [t] (param-fix  (get-in-tree t [:req :form-params])))
 
-(defn mps [t name] (get-in-tree t [:vars name :struct]))
+(defn mps [t name] (param-fix (get-in-tree t [:vars name :struct])))
 
 (defn- codex-req-hdrs [tree]
   ; we don't use get-in-tree as we want to merge definitions in all scopes here
@@ -92,7 +97,7 @@
   [tree]
   (let [ctype (req-ctype tree)
         ctype-hdr (if ctype {h/ctype ctype} {})]
-    (u/update-vals (merge ctype-hdr (codex-req-hdrs tree)) #(vector % :required))))
+    (param-fix (merge ctype-hdr (codex-req-hdrs tree)))))
 
 (defn body-req [t] (get-in-tree t [:req :body]))
 
