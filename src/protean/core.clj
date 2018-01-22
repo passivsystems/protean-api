@@ -71,21 +71,11 @@
 
 (defn- execute-fn
   "Prepare bindings for use through out sim execution context.
-   Handle rules processing.
-
-   rep is the requested endpoint
-   ep is the endpoint
-   req is the request"
-  [protean-home tree rep ep req cfg]
+   Handle rules processing."
+  [aug-req cfg]
   (fn [rule]
     (let [validate? (not (false? (:validate? cfg)))
-          validate-rule (:validate-rule cfg)
-          success-rsp (map #(format-rsp protean-home tree %) (into {} (d/success-status tree)))
-          error-rsp (map #(format-rsp protean-home tree %) (into {} (d/error-status tree)))
-          aug-req (merge (aug-path-params rep ep req)
-                         {:tree tree
-                          :protean-home protean-home
-                          :response {:success success-rsp :error error-rsp}})]
+          validate-rule (:validate-rule cfg)]
       (try
         (if (and validate? (not (nil? validate-rule)))
           (apply validate-rule [aug-req rule])
@@ -93,7 +83,7 @@
             (protean-error-400 (s/join ", " (vals errors)))
             (if rule
               (apply rule [aug-req])
-              (first success-rsp))))
+              (first (sim/success-responses aug-req)))))
         (catch Exception e  (u/print-error e) (protean-error-500))))))
 
 (defn- transform-cors
@@ -149,14 +139,24 @@
           (protean-error-404)))
       (let [rules (get-in sims [svc endpoint method])
             request (sim-req req endpoint svc)
-            execute (execute-fn protean-home tree requested-endpoint endpoint request sim-cfg)
+            success-rsp (map #(format-rsp protean-home tree %) (into {} (d/success-status tree)))
+            error-rsp (map #(format-rsp protean-home tree %) (into {} (d/error-status tree)))
+            aug-req (merge (aug-path-params requested-endpoint endpoint request)
+                         {:tree tree
+                          :protean-home protean-home
+                          :response {:success success-rsp :error error-rsp}})
+            execute (execute-fn aug-req sim-cfg)
             response (when tree (execute rules))]
         (log/info "executed" (if rules "sim extension rules" "default rules") "for uri:" uri "(svc:" svc "endpoint:" endpoint "method:" method ")")
         ; TODO validate response structure
         (log/info "responding with :status" (:status response) ":header" (:headers response) ":body" (:body response))
         (if (map? response)
-          (-> response
-              (ph/swap tree {} :gen-all true)
+          (-> (if (get-in response [:headers "Protean-error"])
+                response
+                (do
+                  (prn (ph/response-bag response aug-req))
+                  (ph/swap response tree (ph/response-bag response aug-req) :gen-all true))
+                )
               (transform-cors sim-cfg)
               (serialise tree))
           (do

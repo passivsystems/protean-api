@@ -3,6 +3,7 @@
   (:refer-clojure :exclude [long int])
   (:require [clojure.string :as s]
             [clojure.set :refer [map-invert]]
+            [protean.utils :as u]
             [protean.api.generation.generate :as gn]
             [protean.api.codex.document :as d]
             [protean.api.transformation.coerce :as c]))
@@ -35,10 +36,10 @@
   [v]
   (cond
     (string? v) (re-seq ph v)
-    (map? v)(seq (mapcat holder? (vals v)))
-    (seq? v)(mapcat holder? v)
-    (vector? v)(mapcat holder? v)
-    :else nil))
+    (map? v)    (seq (mapcat holder? (vals v)))
+    (seq? v)    (mapcat holder? v)
+    (vector? v) (mapcat holder? v)
+    :else       nil))
 
 (defn map-holders [s]
   (map-invert (into {} (holder? s))))
@@ -64,10 +65,6 @@
   [s func]
   (replace-loop s func (holder? s)))
 
-(defn- holder-swap-exp [tree v]
-  (if-let [x (d/get-in-tree tree [:vars v :examples])]
-    (first x)))
-
 (declare swap)
 
 ; TODO we will probably want to control if we generate optional elements
@@ -79,37 +76,33 @@
                          (into {}))]
     (swap struct-with-ph tree bag :gen-all gen-all)))
 
-(defn- holder-swap-gen [gen-all bag tree v]
-  (let [{:keys [gen type struct]} (d/get-in-tree tree [:vars v])
-        structured (gen-struct struct tree bag gen-all)]
-    (if (or gen-all (not (= false gen)))
-      (if type
-        (g-val type structured tree)))))
-
-(defn- holder-swap-bag [bag v]
-  (if-let [x (get-in bag [v])]
-    x))
-
 (defn holder-swap
   "Swap generative values in m of placeholders."
   [m swap-fn tree]
   (cond
-    (string? m)(replace-all-with m (partial swap-fn tree))
-    (map? m)(into {} (for [[k v] m]
-      {k (holder-swap v swap-fn tree)}))
-    (seq? m)(map #(holder-swap % swap-fn tree) m)
-    (vector? m)(map #(holder-swap % swap-fn tree) m)
-    :else m))
+    (string? m) (replace-all-with m (partial swap-fn tree))
+    (map? m)    (into {} (for [[k v] m] {k (holder-swap v swap-fn tree)}))
+    (seq? m)    (map #(holder-swap % swap-fn tree) m)
+    (vector? m) (map #(holder-swap % swap-fn tree) m)
+    :else       m))
 
 (defn swap
   "swaps all occurances of placeholders in m with values in bag
    or generated/examples from tree.
    Note vars marked as :gen false in tree will not be generated (unless optional parameter :gen-all is true)"
   [m tree bag & {:keys [gen-all]}]
+  (defn fn-swap-bag [bag v]
+      (prn "v:" v "bag:" bag "==" (get bag v))
+      (get bag v))
+  (defn fn-swap-exp [tree v] (first (d/get-in-tree tree [:vars v :examples])))
+  (defn fn-swap-gen [gen-all bag tree v]
+    (let [{:keys [gen type struct]} (d/get-in-tree tree [:vars v])]
+      (when (and (or gen-all (not (= false gen))) type)
+        (g-val type (gen-struct struct tree bag gen-all) tree))))
   (-> m
-     (holder-swap holder-swap-bag bag)
-     (holder-swap holder-swap-exp tree)
-     (holder-swap (partial holder-swap-gen gen-all bag) tree)))
+     (holder-swap fn-swap-bag bag)
+     (holder-swap fn-swap-exp tree)
+     (holder-swap (partial fn-swap-gen gen-all bag) tree)))
 
 (defn- regex
  [tree n]
@@ -135,6 +128,34 @@
 ;; =============================================================================
 ;; Extraction functions
 ;; =============================================================================
+
+(defn- param-value
+  [a b]
+  (when (and a b)
+    (into {}
+      (for [[k _] (holder? a)]
+        {(s/replace k #"[${}]" "") (second (re-find (re-pattern (s/replace k ph "(.*)")) b))}))))
+
+(defn response-bag
+  "A bag of placeholder values from the request"
+  [{:keys [status]}
+   {:keys [headers path-params query-params form-params tree response]}]
+  (let [rsp (u/find #(= (:status %) status) (concat (:success response) (:error response)))
+        rsp-holder (map-invert (into {} (holder? rsp)))
+        matrix-params (into {} (filter (fn [[k _]] (s/starts-with? k ";")) path-params))]
+    (merge
+      (into {} (for [[k [v]] (d/req-hdrs tree)]
+        (param-value v (get headers (s/lower-case k)))))
+      (into {} (for [[k v] (into {} path-params)]
+        (param-value (get rsp-holder k) v)))
+      (into {} (for [[k [v]] (d/qps tree)]
+        (param-value v (get query-params k))))
+      (into {} (for [[k v] matrix-params
+                     :let [[a b] (s/split v #"=")]]
+        (param-value (get rsp-holder (s/replace a #";" "")) b)))
+      (into {} (for [[k [v]] (d/fps tree)]
+        (param-value v (get form-params k)))))))
+
 
 (defn- diff [s1 s2]
   (cond
