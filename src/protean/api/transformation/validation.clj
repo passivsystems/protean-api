@@ -67,7 +67,12 @@
   [{:keys [uri path-params tree] :as request}]
   (validate "matrix params" tree
     (into {} (map #(d/mps tree %) (filter #(s/starts-with? % ";") (keys path-params))))
-    (into {} (map #(s/split % #"=") (rest (s/split uri #";"))))))
+    (->> (vals path-params)
+         (filter #(s/starts-with? (str %) ";"))
+         (map #(rest (s/split % #";")))
+         flatten
+         (map #(if (s/includes? % "=") (s/split % #"=") [% ""]))
+         (into {}))))
 
 (defn- zip-str [s] (z/xml-zip (x/parse (ByteArrayInputStream. (.getBytes s)))))
 

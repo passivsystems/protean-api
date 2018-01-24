@@ -1,0 +1,7 @@
+{
+  "pathPlaceholder": ${pathPlaceholder},
+  "headerPlaceholder": "${headerPlaceholder}",
+  "queryPlaceholder": "${queryPlaceholder}",
+  "matrixPlaceholder": "${matrixPlaceholder}",
+  "formPlaceholder": "${formPlaceholder}"
+}

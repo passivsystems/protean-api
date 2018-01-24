@@ -289,3 +289,38 @@
                                "Protean-error" "Bad Request"
                                "Protean-error-messages" "expected matrix params: groupId (was )"}}
         (sim-rsp (req :get "/gu/groups" nil body nil) cdx-6 sim-3))
+
+
+;; Input as output tests
+
+(def cdx-7 {
+  "sample" {
+    "inputs${;inputFilter}/${pathPlaceholder}/form" {
+      :post [{
+        :types {:Token "[a-z]{3}" :String "[a-zA-Z0-9]+"}
+        :vars {"pathPlaceholder" {:type :Long}
+               "headerPlaceholder" {:type :Token}
+               "queryPlaceholder" {:type :String}
+               "matrixPlaceholder" {:type :String}
+               ";inputFilter" {:type :MatrixParams
+                               :struct {"m" ["${matrixPlaceholder}" :required]}}
+               "formPlaceholder" {:type :String}}
+        :req {:headers {"h" "Bearer ${headerPlaceholder}"}
+              :query-params {"q" ["${queryPlaceholder}" :required]}
+              :form-params {"f" ["${formPlaceholder}" :required]}}
+        :rsp {:200 {:body-examples ["test/resources/responses/output.json"]}}
+      }]
+    }
+  }
+})
+
+(def json-body "{
+  \"pathPlaceholder\": 123,
+  \"headerPlaceholder\": \"Bearer xxx\",
+  \"queryPlaceholder\": \"sweet\",
+  \"matrixPlaceholder\": \"juice\",
+  \"formPlaceholder\": \"me\"
+}\n")
+
+(expect {:status 200 :headers json-hdrs :body json-body}
+        (sim-rsp (req :post "/sample/inputs;m=juice/123/form?q=sweet" {"h" "xxx"} nil {"f" "me"}) cdx-7 nil))

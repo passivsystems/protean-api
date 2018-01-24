@@ -91,9 +91,7 @@
    or generated/examples from tree.
    Note vars marked as :gen false in tree will not be generated (unless optional parameter :gen-all is true)"
   [m tree bag & {:keys [gen-all]}]
-  (defn fn-swap-bag [bag v]
-      (prn "v:" v "bag:" bag "==" (get bag v))
-      (get bag v))
+  (defn fn-swap-bag [bag v] (get bag v))
   (defn fn-swap-exp [tree v] (first (d/get-in-tree tree [:vars v :examples])))
   (defn fn-swap-gen [gen-all bag tree v]
     (let [{:keys [gen type struct]} (d/get-in-tree tree [:vars v])]
