@@ -120,9 +120,8 @@
       body-example (h/mime body-example))))
 
 (defn rsp-hdrs [rsp-code tree]
-  (let [ctype (rsp-ctype rsp-code tree)
-        ctype-hdr (if ctype {h/ctype ctype} {})]
-    (merge ctype-hdr (codex-rsp-hdrs rsp-code tree))))
+  (let [ctype (rsp-ctype rsp-code tree)]
+    (merge (when ctype {h/ctype ctype}) (codex-rsp-hdrs rsp-code tree))))
 
 (defn status-matching [tree f-e]
   (let [filter (fn [m] (seq (filter #(re-matches f-e (name (key %))) (:rsp m))))
