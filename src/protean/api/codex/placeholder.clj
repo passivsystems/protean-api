@@ -129,10 +129,10 @@
 
 (defn- param-value
   [a b]
-  (when (and a b)
+  (let [ph-keys (keys (into {} (holder? a)))
+        ph-vals (vec (rest (re-find (re-pattern (s/replace (str a) ph "(.*)")) (str b))))]
     (into {}
-      (for [[k _] (holder? a)]
-        {(s/replace k #"[${}]" "") (second (re-find (re-pattern (s/replace a ph "(.*)")) b))}))))
+      (map-indexed (fn [i v] {(s/replace v #"[${}]" "") (get ph-vals i)}) ph-keys))))
 
 (defn response-bag
   "A bag of placeholder values from the request"
