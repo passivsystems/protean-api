@@ -148,17 +148,14 @@
             execute (execute-fn aug-req sim-cfg)
             response (when tree (execute rules))]
         (log/info "executed" (if rules "sim extension rules" "default rules") "for uri:" uri "(svc:" svc "endpoint:" endpoint "method:" method ")")
-        ; TODO validate response structure
-        (log/info "responding with :status" (:status response) ":header" (:headers response) ":body" (:body response))
         (if (map? response)
-          (-> (if (get-in response [:headers "Protean-error"])
-                response
-                (do
-                  (prn (ph/response-bag response aug-req))
-                  (ph/swap response tree (ph/response-bag response aug-req) :gen-all true))
-                )
-              (transform-cors sim-cfg)
-              (serialise tree))
+          (let [r (-> (if (get-in response [:headers "Protean-error"])
+                        response
+                        (ph/swap response tree (ph/response-bag response aug-req) :gen-all true))
+                      (transform-cors sim-cfg)
+                      (serialise tree))]
+            (log/info "responding with :status" (:status r) ":header" (:headers r) ":body" (:body r))
+            r)
           (do
             (u/print-error (Exception. (str "Response: " (or response "nil") " does not match structure {:status Int :headers Vector :body String} - does your response comply with the codex ?")))
             (protean-error-500)))))))

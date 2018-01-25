@@ -132,7 +132,7 @@
   (when (and a b)
     (into {}
       (for [[k _] (holder? a)]
-        {(s/replace k #"[${}]" "") (second (re-find (re-pattern (s/replace k ph "(.*)")) b))}))))
+        {(s/replace k #"[${}]" "") (second (re-find (re-pattern (s/replace a ph "(.*)")) b))}))))
 
 (defn response-bag
   "A bag of placeholder values from the request"
@@ -140,7 +140,13 @@
    {:keys [headers path-params query-params form-params tree response]}]
   (let [rsp (u/find #(= (:status %) status) (concat (:success response) (:error response)))
         rsp-holder (map-invert (into {} (holder? rsp)))
-        matrix-params (into {} (filter (fn [[k _]] (s/starts-with? k ";")) path-params))]
+        codex-mps (into {} (map #(d/mps tree %) (filter #(s/starts-with? % ";") (keys path-params))))
+        matrix-params (->> (vals path-params)
+                           (filter #(s/starts-with? (str %) ";"))
+                           (map #(rest (s/split % #";")))
+                           flatten
+                           (map #(if (s/includes? % "=") (s/split % #"=") [% ""]))
+                           (into {}))]
     (merge
       (into {} (for [[k [v]] (d/req-hdrs tree)]
         (param-value v (get headers (s/lower-case k)))))
@@ -148,9 +154,8 @@
         (param-value (get rsp-holder k) v)))
       (into {} (for [[k [v]] (d/qps tree)]
         (param-value v (get query-params k))))
-      (into {} (for [[k v] matrix-params
-                     :let [[a b] (s/split v #"=")]]
-        (param-value (get rsp-holder (s/replace a #";" "")) b)))
+      (into {} (for [[k [v]] codex-mps]
+        (param-value v (get matrix-params k))))
       (into {} (for [[k [v]] (d/fps tree)]
         (param-value v (get form-params k)))))))
 

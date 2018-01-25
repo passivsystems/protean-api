@@ -308,7 +308,8 @@
         :req {:headers {"h" "Bearer ${headerPlaceholder}"}
               :query-params {"q" ["${queryPlaceholder}" :required]}
               :form-params {"f" ["${formPlaceholder}" :required]}}
-        :rsp {:200 {:body-examples ["test/resources/responses/output.json"]}}
+        :rsp {:200 {:body-examples ["test/resources/responses/output.json"]
+                    :headers {"location" "outputs/${pathPlaceholder}/${headerPlaceholder}"}}}
       }]
     }
   }
@@ -316,11 +317,11 @@
 
 (def json-body "{
   \"pathPlaceholder\": 123,
-  \"headerPlaceholder\": \"Bearer xxx\",
+  \"headerPlaceholder\": \"xxx\",
   \"queryPlaceholder\": \"sweet\",
   \"matrixPlaceholder\": \"juice\",
   \"formPlaceholder\": \"me\"
 }\n")
 
-(expect {:status 200 :headers json-hdrs :body json-body}
-        (sim-rsp (req :post "/sample/inputs;m=juice/123/form?q=sweet" {"h" "xxx"} nil {"f" "me"}) cdx-7 nil))
+(expect {:status 200 :headers (merge json-hdrs {"location" "outputs/123/xxx"}) :body json-body}
+        (sim-rsp (req :post "/sample/inputs;m=juice/123/form?q=sweet" {"h" "Bearer xxx"} nil {"f" "me"}) cdx-7 nil))
