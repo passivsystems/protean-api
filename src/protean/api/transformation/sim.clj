@@ -131,7 +131,7 @@
 
 (defn- body-errors [request protean-home tree]
   (let [schema (d/to-path protean-home (d/get-in-tree tree [:req :body-schema]) tree)
-        codex-body (d/body-req tree)]
+        codex-body (d/req-body tree)]
     (v/validate-body request schema codex-body)))
 
 (defn validate

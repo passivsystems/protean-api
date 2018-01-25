@@ -94,7 +94,9 @@
         ctype-hdr (if ctype {h/ctype ctype} {})]
     (u/update-vals (merge ctype-hdr (codex-req-hdrs tree)) #(vector % :required))))
 
-(defn body-req [t] (get-in-tree t [:req :body]))
+(defn req-body [t] (get-in-tree t [:req :body]))
+
+(defn req-body-examples [t] (get-in-tree t [:req :body-examples]))
 
 ;; =============================================================================
 ;; Codex response

@@ -130,14 +130,18 @@
 (defn- param-value
   [a b]
   (let [ph-keys (keys (into {} (holder? a)))
-        ph-vals (vec (rest (re-find (re-pattern (s/replace (str a) ph "(.*)")) (str b))))]
+        pattern (-> (str a)
+                    (s/replace ph "(.*)")
+                    (s/escape {\[ "\\[", \] "\\]", \{ "\\{", \} "\\}"})
+                    (re-pattern))
+        ph-vals (vec (rest (re-find pattern (str b))))]
     (into {}
       (map-indexed (fn [i v] {(s/replace v #"[${}]" "") (get ph-vals i)}) ph-keys))))
 
 (defn response-bag
   "A bag of placeholder values from the request"
   [{:keys [status]}
-   {:keys [headers path-params query-params form-params tree response]}]
+   {:keys [protean-home tree headers path-params query-params form-params body response]}]
   (let [rsp (u/find #(= (:status %) status) (concat (:success response) (:error response)))
         rsp-holder (map-invert (into {} (holder? rsp)))
         codex-mps (into {} (map #(d/mps tree %) (filter #(s/starts-with? % ";") (keys path-params))))
@@ -157,8 +161,11 @@
       (into {} (for [[k [v]] codex-mps]
         (param-value v (get matrix-params k))))
       (into {} (for [[k [v]] (d/fps tree)]
-        (param-value v (get form-params k)))))))
-
+        (param-value v (get form-params k))))
+      (into {} (for [p (d/req-body-examples tree)]
+        (param-value
+          (str (c/clj (slurp (d/to-path protean-home p tree))))
+          (str (c/clj body))))))))
 
 (defn- diff [s1 s2]
   (cond

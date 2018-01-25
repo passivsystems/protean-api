@@ -303,20 +303,36 @@
                "headerPlaceholder2" {:type :Token}
                "queryPlaceholder" {:type :String}
                "matrixPlaceholder" {:type :String}
-               ";inputFilter" {:type :MatrixParams
-                               :struct {"m" ["${matrixPlaceholder}" :required]}}
+               ";inputFilter" {:type :MatrixParams :struct {"m" ["${matrixPlaceholder}" :required]}}
                "formPlaceholder" {:type :String}}
         :req {:headers {"h" "Bearer ${headerPlaceholder1} ${headerPlaceholder2}"}
               :query-params {"q" ["${queryPlaceholder}" :required]}
               :form-params {"f" ["${formPlaceholder}" :required]}}
-        :rsp {:200 {:body-examples ["test/resources/responses/output.json"]
+        :rsp {:200 {:body-examples ["test/resources/responses/output-form.json"]
+                    :headers {"location" "outputs/${pathPlaceholder}/${headerPlaceholder1}"}}}
+      }]
+    }
+    "inputs${;inputFilter}/${pathPlaceholder}/body" {
+      :post [{
+        :types {:Token "[a-z]{3}" :String "[a-zA-Z0-9]+"}
+        :vars {"pathPlaceholder" {:type :Long}
+               "headerPlaceholder1" {:type :Token}
+               "headerPlaceholder2" {:type :Token}
+               "queryPlaceholder" {:type :String}
+               "matrixPlaceholder" {:type :String}
+               ";inputFilter" {:type :MatrixParams :struct {"m" ["${matrixPlaceholder}" :required]}}
+               "formPlaceholder" {:type :String}}
+        :req {:headers {"h" "Bearer ${headerPlaceholder1} ${headerPlaceholder2}"}
+              :query-params {"q" ["${queryPlaceholder}" :required]}
+              :body-examples ["test/resources/requests/input-body.json"]}
+        :rsp {:200 {:body-examples ["test/resources/responses/output-body.json"]
                     :headers {"location" "outputs/${pathPlaceholder}/${headerPlaceholder1}"}}}
       }]
     }
   }
 })
 
-(def json-body "{
+(def output-form "{
   \"pathPlaceholder\": 123,
   \"headerPlaceholder1\": \"xxx\",
   \"headerPlaceholder2\": \"yyy\",
@@ -325,5 +341,26 @@
   \"formPlaceholder\": \"me\"
 }\n")
 
-(expect {:status 200 :headers (merge json-hdrs {"location" "outputs/123/xxx"}) :body json-body}
+(expect {:status 200 :headers (merge json-hdrs {"location" "outputs/123/xxx"}) :body output-form}
         (sim-rsp (req :post "/sample/inputs;m=juice/123/form?q=sweet" {"h" "Bearer xxx yyy"} nil {"f" "me"}) cdx-7 nil))
+
+(def input-body
+  (.getBytes
+    "{\"bodyPlaceholder1\": \"qwerty\", \"bodyPlaceholder2\": \"bertie\", \"bodyPlaceholder3\": \"hurtie\"}"
+    "UTF-8"))
+
+(def output-body "{
+  \"pathPlaceholder\": \"123\",
+  \"headerPlaceholder1\": \"xxx\",
+  \"headerPlaceholder2\": \"yyy\",
+  \"queryPlaceholder\": \"sweet\",
+  \"matrixPlaceholder\": \"juice\",
+  \"bodyPlaceholder1\": \"qwerty\",
+  \"nested\": {
+    \"bodyPlaceholder2\": \"bertie\"
+  },
+  \"items\": [\"hurtie\", \"hurtie\", \"hurtie\"]
+}\n")
+
+(expect {:status 200 :headers (merge json-hdrs {"location" "outputs/123/xxx"}) :body output-body}
+        (sim-rsp (req :post "/sample/inputs;m=juice/123/body?q=sweet" {"h" "Bearer xxx yyy"} input-body nil) cdx-7 nil))
