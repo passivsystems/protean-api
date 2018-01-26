@@ -65,7 +65,7 @@
 
 (defn validate-matrix-params
   [{:keys [matrix-params path-params tree] :as request}]
-  (validate "matrix params" tree (d/mps tree path-params) matrix-params))
+  (validate "matrix params" tree (d/mps tree (keys path-params)) matrix-params))
 
 (defn- zip-str [s] (z/xml-zip (x/parse (ByteArrayInputStream. (.getBytes s)))))
 

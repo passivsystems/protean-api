@@ -75,9 +75,8 @@
 
 (defn fps [t] (param-fix (get-in-tree t [:req :form-params])))
 
-(defn mps [t path-params]
-  (->> (keys path-params)
-       (filter #(s/starts-with? % ";"))
+(defn mps [t names]
+  (->> (filter #(s/starts-with? % ";") names)
        (map (fn [n] (u/update-keys (get-in-tree t [:vars n :struct]) #(str n "." %))))
        (into {})
        param-fix))

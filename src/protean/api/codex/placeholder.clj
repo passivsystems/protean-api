@@ -148,7 +148,7 @@
       (concat (map (fn [[k v]] (p-val (rsp-holder k) v)) path-params)
               (map (fn [[k [v]]] (p-val v (headers (s/lower-case k)))) (d/req-hdrs tree))
               (map (fn [[k [v]]] (p-val v (query-params k))) (d/qps tree))
-              (map (fn [[k [v]]] (p-val v (matrix-params k))) (d/mps tree path-params))
+              (map (fn [[k [v]]] (p-val v (matrix-params k))) (d/mps tree (keys path-params)))
               (map (fn [[k [v]]] (p-val v (form-params k))) (d/fps tree))))))
 
 (defn- diff [s1 s2]
