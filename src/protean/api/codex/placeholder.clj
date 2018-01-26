@@ -127,7 +127,7 @@
 ;; Extraction functions
 ;; =============================================================================
 
-(defn- param-value
+(defn- p-val
   [a b]
   (let [ph-keys (keys (into {} (holder? a)))
         pattern (-> (str a)
@@ -141,7 +141,7 @@
 (defn response-bag
   "A bag of placeholder values from the request"
   [{:keys [status]}
-   {:keys [protean-home tree headers path-params query-params form-params body response]}]
+   {:keys [tree headers path-params query-params form-params response]}]
   (let [rsp (u/find #(= (:status %) status) (concat (:success response) (:error response)))
         rsp-holder (map-invert (into {} (holder? rsp)))
         codex-mps (into {} (map #(d/mps tree %) (filter #(s/starts-with? % ";") (keys path-params))))
@@ -151,21 +151,12 @@
                            flatten
                            (map #(if (s/includes? % "=") (s/split % #"=") [% ""]))
                            (into {}))]
-    (merge
-      (into {} (for [[k [v]] (d/req-hdrs tree)]
-        (param-value v (get headers (s/lower-case k)))))
-      (into {} (for [[k v] (into {} path-params)]
-        (param-value (get rsp-holder k) v)))
-      (into {} (for [[k [v]] (d/qps tree)]
-        (param-value v (get query-params k))))
-      (into {} (for [[k [v]] codex-mps]
-        (param-value v (get matrix-params k))))
-      (into {} (for [[k [v]] (d/fps tree)]
-        (param-value v (get form-params k))))
-      (into {} (for [p (d/req-body-examples tree)]
-        (param-value
-          (str (c/clj (slurp (d/to-path protean-home p tree))))
-          (str (c/clj body))))))))
+    (into {}
+      (concat (map (fn [[k v]] (p-val (rsp-holder k) v)) path-params)
+              (map (fn [[k [v]]] (p-val v (headers (s/lower-case k)))) (d/req-hdrs tree))
+              (map (fn [[k [v]]] (p-val v (query-params k))) (d/qps tree))
+              (map (fn [[k [v]]] (p-val v (matrix-params k))) codex-mps)
+              (map (fn [[k [v]]] (p-val v (form-params k))) (d/fps tree))))))
 
 (defn- diff [s1 s2]
   (cond

@@ -343,24 +343,3 @@
 
 (expect {:status 200 :headers (merge json-hdrs {"location" "outputs/123/xxx"}) :body output-form}
         (sim-rsp (req :post "/sample/inputs;m=juice/123/form?q=sweet" {"h" "Bearer xxx yyy"} nil {"f" "me"}) cdx-7 nil))
-
-(def input-body
-  (.getBytes
-    "{\"bodyPlaceholder1\": \"qwerty\", \"bodyPlaceholder2\": \"bertie\", \"bodyPlaceholder3\": \"hurtie\"}"
-    "UTF-8"))
-
-(def output-body "{
-  \"pathPlaceholder\": \"123\",
-  \"headerPlaceholder1\": \"xxx\",
-  \"headerPlaceholder2\": \"yyy\",
-  \"queryPlaceholder\": \"sweet\",
-  \"matrixPlaceholder\": \"juice\",
-  \"bodyPlaceholder1\": \"qwerty\",
-  \"nested\": {
-    \"bodyPlaceholder2\": \"bertie\"
-  },
-  \"items\": [\"hurtie\", \"hurtie\", \"hurtie\"]
-}\n")
-
-(expect {:status 200 :headers (merge json-hdrs {"location" "outputs/123/xxx"}) :body output-body}
-        (sim-rsp (req :post "/sample/inputs;m=juice/123/body?q=sweet" {"h" "Bearer xxx yyy"} input-body nil) cdx-7 nil))
