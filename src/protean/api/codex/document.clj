@@ -61,15 +61,20 @@
   [protean-home path tree]
   (to-path-dir protean-home path (get-in-tree tree [:codex-dir])))
 
+(defn- param-fix
+  "Vectors param if not of type collection and marks as required"
+  [params]
+  (u/update-vals params #(if (coll? %) % (vector % :required))))
+
 ;; =============================================================================
 ;; Codex request
 ;; =============================================================================
 
-(defn qps [t] (get-in-tree t [:req :query-params]))
+(defn qps [t] (param-fix (get-in-tree t [:req :query-params])))
 
-(defn fps [t] (get-in-tree t [:req :form-params]))
+(defn fps [t] (param-fix  (get-in-tree t [:req :form-params])))
 
-(defn mps [t name] (get-in-tree t [:vars name :struct]))
+(defn mps [t name] (param-fix (get-in-tree t [:vars name :struct])))
 
 (defn- codex-req-hdrs [tree]
   ; we don't use get-in-tree as we want to merge definitions in all scopes here
@@ -92,7 +97,7 @@
   [tree]
   (let [ctype (req-ctype tree)
         ctype-hdr (if ctype {h/ctype ctype} {})]
-    (u/update-vals (merge ctype-hdr (codex-req-hdrs tree)) #(vector % :required))))
+    (param-fix (merge ctype-hdr (codex-req-hdrs tree)))))
 
 (defn req-body [t] (get-in-tree t [:req :body]))
 
@@ -117,9 +122,8 @@
       body-example (h/mime body-example))))
 
 (defn rsp-hdrs [rsp-code tree]
-  (let [ctype (rsp-ctype rsp-code tree)
-        ctype-hdr (if ctype {h/ctype ctype} {})]
-    (merge ctype-hdr (codex-rsp-hdrs rsp-code tree))))
+  (let [ctype (rsp-ctype rsp-code tree)]
+    (merge (when ctype {h/ctype ctype}) (codex-rsp-hdrs rsp-code tree))))
 
 (defn status-matching [tree f-e]
   (let [filter (fn [m] (seq (filter #(re-matches f-e (name (key %))) (:rsp m))))
