@@ -64,15 +64,8 @@
   (validate "form params" tree (d/fps tree) form-params))
 
 (defn validate-matrix-params
-  [{:keys [uri path-params tree] :as request}]
-  (validate "matrix params" tree
-    (into {} (map #(d/mps tree %) (filter #(s/starts-with? % ";") (keys path-params))))
-    (->> (vals path-params)
-         (filter #(s/starts-with? (str %) ";"))
-         (map #(rest (s/split % #";")))
-         flatten
-         (map #(if (s/includes? % "=") (s/split % #"=") [% ""]))
-         (into {}))))
+  [{:keys [matrix-params path-params tree] :as request}]
+  (validate "matrix params" tree (d/mps tree path-params) matrix-params))
 
 (defn- zip-str [s] (z/xml-zip (x/parse (ByteArrayInputStream. (.getBytes s)))))
 

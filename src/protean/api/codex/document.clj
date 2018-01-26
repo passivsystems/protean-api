@@ -1,6 +1,7 @@
 (ns protean.api.codex.document
   "Codex data extraction and truthiness functionality."
-  (:require [me.rossputin.diskops :as dsk]
+  (:require [clojure.string :as s]
+            [me.rossputin.diskops :as dsk]
             [protean.utils :as u]
             [protean.api.protocol.http :as h]))
 
@@ -72,9 +73,14 @@
 
 (defn qps [t] (param-fix (get-in-tree t [:req :query-params])))
 
-(defn fps [t] (param-fix  (get-in-tree t [:req :form-params])))
+(defn fps [t] (param-fix (get-in-tree t [:req :form-params])))
 
-(defn mps [t name] (param-fix (get-in-tree t [:vars name :struct])))
+(defn mps [t path-params]
+  (->> (keys path-params)
+       (filter #(s/starts-with? % ";"))
+       (map (fn [n] (u/update-keys (get-in-tree t [:vars n :struct]) #(str n "." %))))
+       (into {})
+       param-fix))
 
 (defn- codex-req-hdrs [tree]
   ; we don't use get-in-tree as we want to merge definitions in all scopes here

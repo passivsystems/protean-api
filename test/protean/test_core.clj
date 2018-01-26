@@ -287,7 +287,7 @@
 
 (expect {:status 400 :headers {"Access-Control-Allow-Origin" "*"
                                "Protean-error" "Bad Request"
-                               "Protean-error-messages" "expected matrix params: groupId (was )"}}
+                               "Protean-error-messages" "expected matrix params: ;groupFilter.groupId (was )"}}
         (sim-rsp (req :get "/gu/groups" nil body nil) cdx-6 sim-3))
 
 

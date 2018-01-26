@@ -30,8 +30,14 @@
 (defn- aug-path-params [req-endpoint cod-endpoint request]
   (let [ph-ks (map second (re-seq ph/ph cod-endpoint))
         ph-vs (drop 1 (parse-endpoint req-endpoint cod-endpoint))
-        params (into {} (map vector ph-ks ph-vs))]
-    (assoc request :path-params params)))
+        path-params (into {} (map vector ph-ks ph-vs))
+        matrix-params (->> path-params
+                           (filter (fn [[_ v]] (s/starts-with? (str v) ";")))
+                           (map (fn [[k v]] (map #(str k "." %) (rest (s/split v #";")))))
+                           flatten
+                           (map #(if (s/includes? % "=") (s/split % #"=") [% ""]))
+                           (into {}))]
+    (assoc request :path-params path-params :matrix-params matrix-params)))
 
 (defn- sim-req
   "Prepare request for sim binding - augment with necessary information.

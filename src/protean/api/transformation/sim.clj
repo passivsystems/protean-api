@@ -80,20 +80,11 @@
 
 (defn path-param [request p] (get-in request [:path-params p]))
 
-(defn- flip [f] (fn [x y] (f y x)))
+(defn matrix-param [request p] (get-in request [:matrix-params p]))
 
-(defn matrix-params
-  "Gets matrix params given a matrix param placeholder.
-   E.G. /groups${;groupFilter} has a
-   matrix param placeholder ';groupFilter' which can be associated with several
-   matrix params."
-  [request mp-name]
-  (when-let [pp (path-param request (str ";" mp-name))]
-    (->> pp
-        ((flip s/split) #";")
-        (filter seq)
-        (map #(s/split % #"="))
-        (into {}))))
+(defn matrix-params [{:keys [matrix-params]} p]
+  (-> (filter (fn [[k _]] (s/starts-with? k p)) matrix-params)
+      (u/update-keys #(s/join "." (rest (s/split % #"\."))))))
 
 (defn param [request p] (get-in request [:params p]))
 

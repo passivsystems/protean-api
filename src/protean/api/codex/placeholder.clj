@@ -141,21 +141,14 @@
 (defn response-bag
   "A bag of placeholder values from the request"
   [{:keys [status]}
-   {:keys [tree headers path-params query-params form-params response]}]
+   {:keys [tree headers path-params matrix-params query-params form-params response]}]
   (let [rsp (u/find #(= (:status %) status) (concat (:success response) (:error response)))
-        rsp-holder (map-invert (into {} (holder? rsp)))
-        codex-mps (into {} (map #(d/mps tree %) (filter #(s/starts-with? % ";") (keys path-params))))
-        matrix-params (->> (vals path-params)
-                           (filter #(s/starts-with? (str %) ";"))
-                           (map #(rest (s/split % #";")))
-                           flatten
-                           (map #(if (s/includes? % "=") (s/split % #"=") [% ""]))
-                           (into {}))]
+        rsp-holder (map-invert (into {} (holder? rsp)))]
     (into {}
       (concat (map (fn [[k v]] (p-val (rsp-holder k) v)) path-params)
               (map (fn [[k [v]]] (p-val v (headers (s/lower-case k)))) (d/req-hdrs tree))
               (map (fn [[k [v]]] (p-val v (query-params k))) (d/qps tree))
-              (map (fn [[k [v]]] (p-val v (matrix-params k))) codex-mps)
+              (map (fn [[k [v]]] (p-val v (matrix-params k))) (d/mps tree path-params))
               (map (fn [[k [v]]] (p-val v (form-params k))) (d/fps tree))))))
 
 (defn- diff [s1 s2]
