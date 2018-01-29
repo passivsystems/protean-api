@@ -18,7 +18,8 @@
 (defn- invalid-values
   [params tree items]
   (let [invalid (fn [value pattern]
-                  (when (and pattern (empty? (filter #(re-matches pattern %) value)))
+                  (when (and (not (s/blank? (str pattern)))
+                             (empty? (filter #(re-matches pattern %) value)))
                     (str " value: '" (s/join "," value) "' does not match: " pattern)))
         patterns (into {} (for [[k v] params] {k (ph/regex-pattern tree (first v))}))
         select-items (into {} (for [[k v] (select-keys items (keys patterns))]
