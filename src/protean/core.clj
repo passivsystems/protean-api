@@ -99,14 +99,14 @@
     (merge-with merge {:headers {"Access-Control-Allow-Origin" "*"}} rsp)))
 
 (defn- serialise
-  [rsp tree]
+  [{:keys [status body] :as rsp} tree]
   (let [ctype (str (or (get-in rsp [:headers "Content-Type"])
-                       (d/rsp-ctype (keyword (str (:status rsp))) tree)))]
+                       (d/rsp-ctype (keyword (str status)) tree)))]
     (cond
-      (nil? (:body rsp))                     rsp
-      (string? (:body rsp))                  rsp
-      (s/starts-with? ctype http/jsn-simple) (assoc rsp :body (coerce/jsn (:body rsp)))
-      (s/starts-with? ctype http/xml)        (assoc rsp :body (coerce/xml (:body rsp)))
+      (nil? body)                            rsp
+      (string? body)                         rsp ;; Assume already coerced
+      (s/starts-with? ctype http/jsn-simple) (assoc rsp :body (coerce/jsn body))
+      (s/starts-with? ctype http/xml)        (assoc rsp :body (coerce/xml body))
       :else                                  rsp)))
 
 
