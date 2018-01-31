@@ -31,7 +31,6 @@
   successfully be validated. It additionally contains a :message property
   with a human readable error description."
   [schema data]
-  ;(println (str "validating '" data "' against " schema))
   (try
     (let [parsed-schema (parse-to-node (slurp schema))
           schema (-> json-schema-factory (.getJsonSchema parsed-schema))
