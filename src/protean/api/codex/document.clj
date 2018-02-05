@@ -113,12 +113,11 @@
 ;; =============================================================================
 
 (defn- codex-rsp-hdrs [rsp-code tree]
-  (merge
-    (get-in-tree tree [:rsp :headers])
-    (get-in-tree tree [:rsp rsp-code :headers])))
+  (param-fix (merge (get-in-tree tree [:rsp :headers])
+                    (get-in-tree tree [:rsp rsp-code :headers]))))
 
 (defn rsp-ctype [rsp-code tree]
-  (let [ctype (get (codex-rsp-hdrs rsp-code tree) h/ctype)
+  (let [ctype (get-in (codex-rsp-hdrs rsp-code tree) [h/ctype 0])
         body-schema (get-in-tree tree [:rsp rsp-code :body-schema])
         body-example (first (get-in-tree tree [:rsp rsp-code :body-examples]))]
     (cond
@@ -128,21 +127,18 @@
 
 (defn rsp-hdrs [rsp-code tree]
   (let [ctype (rsp-ctype rsp-code tree)]
-    (merge (when ctype {h/ctype ctype}) (codex-rsp-hdrs rsp-code tree))))
+    (merge (when ctype (param-fix {h/ctype ctype}))
+           (codex-rsp-hdrs rsp-code tree))))
 
 (defn status-matching [tree f-e]
-  (let [filter (fn [m] (seq (filter #(re-matches f-e (name (key %))) (:rsp m))))
-        statuses (some identity (map filter tree))
-        include-defaults (fn [[k v]]
-      [k (update-in v [:headers] #(merge (get-in-tree tree [:rsp :headers]) %))])]
-    (seq (into {} (map include-defaults statuses)))))
+ (->> tree
+      (map (fn [{:keys [rsp]}] (filter #(re-matches f-e (name (key %))) rsp)))
+      (some identity)
+      ; includes default headers, content type + unapply param-fix
+      (map (fn [[k v]] [k (assoc v :headers (u/update-vals (rsp-hdrs k tree) first))]))
+      (into {})
+      seq))
 
 (defn success-status [tree] (status-matching tree #"[123]\d\d"))
 
 (defn error-status [tree] (status-matching tree #"[45]\d\d"))
-
-;; =============================================================================
-;; Codex fragment functions (codex fragments that travel with tests etc)
-;; =============================================================================
-
-(defn azn [c] (get-in c [:headers h/azn]))

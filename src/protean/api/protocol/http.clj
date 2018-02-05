@@ -24,7 +24,7 @@
 ;;;;;;;;;;
 
 (def ctype "Content-Type")
-(def azn "Authorization")
+(def auth "Authorization")
 (def loc "Location")
 
 

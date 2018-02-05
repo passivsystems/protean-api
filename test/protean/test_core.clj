@@ -197,7 +197,7 @@
       :get [{
         :types {:Token "[0-9a-zA-Z0-9]{15}"}
         :vars {"bearerToken" {:type :Token :examples ["08d2301e-ee81-4654-b448-0636f454612a"]}}
-        :req {:headers {"Authorization" "Bearer ${bearerToken}"}}
+        :req {:headers {"Authorization" ["Bearer ${bearerToken}" :required]}}
         :rsp {:200 {} :401 {} :403 {}}
       }]
     }
