@@ -76,6 +76,8 @@
   ([request] (c/clj (body request)))
   ([request k] (c/clj (body request) (or k false))))
 
+(defn header-param [request p] (get-in request [:headers (s/lower-case p)]))
+
 (defn query-param [request p] (get-in request [:query-params p]))
 
 (defn path-param [request p] (get-in request [:path-params p]))
