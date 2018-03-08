@@ -1,0 +1,12 @@
+{
+  "pathPlaceholder": "${pathPlaceholder}",
+  "headerPlaceholder1": "${headerPlaceholder1}",
+  "headerPlaceholder2": "${headerPlaceholder2}",
+  "queryPlaceholder": "${queryPlaceholder}",
+  "matrixPlaceholder": "${matrixPlaceholder}",
+  "bodyPlaceholder1": "${bodyPlaceholder1}",
+  "nested": {
+    "bodyPlaceholder2": "${bodyPlaceholder2}"
+  },
+  "items": ["${bodyPlaceholder3}", "${bodyPlaceholder3}", "${bodyPlaceholder3}"]
+}

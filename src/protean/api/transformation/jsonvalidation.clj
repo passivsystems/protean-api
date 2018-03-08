@@ -1,11 +1,7 @@
 (ns protean.api.transformation.jsonvalidation
   "Tools for validating json/xml."
-  (:require [clojure.java.io :as io])
   (:import [com.fasterxml.jackson.databind ObjectMapper]
-           [com.github.fge.jsonschema.main JsonSchemaFactory]
-           [com.github.fge.jsonschema.load.configuration LoadingConfiguration]
-           [com.github.fge.jsonschema.load.uri URITransformer]))
-; Based on: https://github.com/bripkens/json-schema-validation-example/blob/master/src/json_schema_validation/core.clj
+           [com.github.fge.jsonschema.main JsonSchemaFactory]))
 
 (def
   ^{:private true
@@ -13,16 +9,7 @@
          You can call (.getJsonSchema json-schema-factory <json-schema-node>)
          to retrieve a JsonSchema instance which can validate JSON."}
   json-schema-factory
-  (let [transformer (-> (URITransformer/newBuilder)
-                        (.setNamespace "resource:/schema/")
-                        .freeze)
-        loading-config (-> (LoadingConfiguration/newBuilder)
-                           (.setURITransformer transformer)
-                           .freeze)
-        factory (-> (JsonSchemaFactory/newBuilder)
-                    (.setLoadingConfiguration loading-config)
-                    .freeze)]
-    factory))
+  (JsonSchemaFactory/byDefault))
 
 (def
   ^{:private true
@@ -44,7 +31,6 @@
   successfully be validated. It additionally contains a :message property
   with a human readable error description."
   [schema data]
-  ;(println (str "validating '" data "' against " schema))
   (try
     (let [parsed-schema (parse-to-node (slurp schema))
           schema (-> json-schema-factory (.getJsonSchema parsed-schema))

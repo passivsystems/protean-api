@@ -2,124 +2,161 @@
   "Machinery provided for running sims."
   (:require [clojure.string :as s]
             [me.rossputin.diskops :as dk]
-            [protean.utils :as utils]
+            [protean.utils :as u]
             [protean.api.codex.document :as d]
             [protean.api.codex.placeholder :as ph]
-            [protean.api.transformation.sim :as sim])
-  (:use [taoensso.timbre :as timbre
-     :only (debug info warn)
-     :rename {debug log-debug info log-info warn log-warn}]))
+            [protean.api.protocol.http :as http]
+            [protean.api.transformation.sim :as sim]
+            [protean.api.transformation.coerce :as coerce]
+            [taoensso.timbre :as log]))
 
-(defn- parse-endpoint [requested-endpoint cod-endpoint]
-  ; TODO instead of requiring namedparameter to start with ';' when a matrix parameter
-  ;      could look up [:var s :type] to see if is a Matrix parameter
-  ;      however currently require parse-endpoint before we can get tree
+(defn- parse-endpoint [req-endpoint cod-endpoint]
   (let [any (fn [s] (if (.startsWith s ";")
-              "(;[^/^?]*)?" ; matrixParam regex
-              "([^/^?]+)")) ; pathParam regex
+                          "(;[^/^?]*)?" ; matrix param
+                          "([^/^?]+)")) ; path param
         regex (ph/replace-all-with cod-endpoint any)]
-    (re-matches (re-pattern regex) requested-endpoint)))
+    (re-matches (re-pattern regex) req-endpoint)))
 
-(defn- to-endpoint [requested-endpoint paths svc]
+(defn- to-endpoint [req-endpoint paths svc]
   (let [endpoints (keys (get-in paths [svc]))
-        filtered-ep (filter #(parse-endpoint requested-endpoint %) endpoints)]
+        filtered-ep (filter #(parse-endpoint req-endpoint %) endpoints)]
     (if (next filtered-ep)
-      (or (some #{requested-endpoint} filtered-ep) requested-endpoint nil)
-        (first (filter #(parse-endpoint requested-endpoint %) endpoints)))))
+      (or (some #{req-endpoint} filtered-ep) req-endpoint nil)
+      (u/find #(parse-endpoint req-endpoint %) endpoints))))
 
-(defn- aug-path-params [req-endpoint cod-endpoint request]
-  (let [ph-ks (map second (re-seq ph/ph cod-endpoint))
-        ph-vs (drop 1 (parse-endpoint req-endpoint cod-endpoint))
-        params (into {} (map vector ph-ks ph-vs))]
-    (assoc request :path-params params)))
+(defn- build-rsp
+  [protean-home tree [code {:keys [body-examples headers]}]]
+  (let [status-code (read-string (name code)) ; to int
+        body-url (first body-examples)
+        hdrs-with-ctype (if (and body-url (not (get-in headers [http/ctype])))
+                          (assoc headers http/ctype (http/mime body-url))
+                          headers)
+        raw-body (when body-url (slurp (d/to-path protean-home body-url tree)))
+        body (if (http/txt? (get hdrs-with-ctype http/ctype))
+               (s/trim-newline raw-body)
+               raw-body)]
+    {:status status-code :headers hdrs-with-ctype :body body}))
 
 (defn- sim-req
   "Prepare request for sim binding - augment with necessary information.
    Handles converting body from input stream to content for multi access."
-  [req ep svc]
-  (assoc req :endpoint ep :svc svc :body (or (dk/slurp-pun (:body req)) "")))
+  [req protean-home tree svc req-endpoint cod-endpoint]
+  (let [success-rsp (map #(build-rsp protean-home tree %) (d/success-status tree))
+        error-rsp (map #(build-rsp protean-home tree %) (d/error-status tree))
+        ph-ks (map second (re-seq ph/ph cod-endpoint))
+        ph-vs (drop 1 (parse-endpoint req-endpoint cod-endpoint))
+        path-params (into {} (map vector ph-ks ph-vs))
+        matrix-params (->> path-params
+                           (filter (fn [[_ v]] (s/starts-with? (str v) ";")))
+                           (map (fn [[k v]] (map #(str k "." %) (rest (s/split v #";")))))
+                           flatten
+                           (map #(if (s/includes? % "=") (s/split % #"=") [% ""]))
+                           (into {}))]
+    (assoc req :protean-home protean-home
+               :tree tree
+               :endpoint cod-endpoint
+               :svc svc
+               :body (or (dk/slurp-pun (:body req)) "")
+               :response {:success success-rsp :error error-rsp}
+               :path-params path-params
+               :matrix-params matrix-params)))
 
-(defn- protean-error-405 [supported-methods]
+(defn- protean-error-400 [msg] {:status 400 :headers {"Protean-error" "Bad Request" "Protean-error-messages" msg}})
+
+(defn- protean-error-404 [] {:status 404 :headers {"Protean-error" "Not Found"}})
+
+(defn- protean-error-405 [allowed-methods]
   {:status 405
-   :headers {
-     "Protean-error" "Method Not Allowed"
-     "Allow" (s/join ", " (map #(s/upper-case (name %)) supported-methods))
-   }
-  })
+   :headers {"Protean-error" "Method Not Allowed"
+             "Allow" (s/join ", " (map #(s/upper-case (name %)) allowed-methods))}})
 
-(defn- protean-error-404 []
-  {:status 404 :headers {"Protean-error" "Not Found"}})
-
-(defn- protean-error-500 []
-  {:status 500 :headers {"Protean-error" "Error in sim"}})
+(defn- protean-error-500 [] {:status 500 :headers {"Protean-error" "Error in sim"}})
 
 (defn- execute-fn
   "Prepare bindings for use through out sim execution context.
-   Handle rules processing.
-
-   rep is the requested endpoint
-   ep is the endpoint
-   req is the request"
-  [tree corpus rep ep req]
+   Handle rules processing."
+  [aug-req {:keys [validate? validate-rule]}]
   (fn [rule]
-    (if (not tree) nil)
-    (try
-      (binding [sim/*tree* tree
-                sim/*request* (aug-path-params rep ep req)
-                sim/*corpus* corpus]
-        (apply rule nil))
-    (catch Exception e
-      (utils/print-error e)
-      (protean-error-500)))))
+    (let [validate? (not (false? validate?))
+          validate-rule? (and validate? (not (nil? validate-rule)))
+          errors (and (not validate-rule?) validate? (sim/validate aug-req))]
+      (try
+        (cond
+          validate-rule? (apply validate-rule [aug-req rule])
+          errors         (protean-error-400 (s/join ", " (vals errors)))
+          rule           (apply rule [aug-req])
+          :else          (first (sim/success-responses aug-req)))
+        (catch Exception e (u/print-error e) (protean-error-500))))))
+
+(defn- http-options [paths svc endpoint {:keys [cors]}]
+  (let [e (get-in paths [svc endpoint])
+        m (map #(s/upper-case (name %)) (keys e))
+        h (conj (keys (into {} (for [[_ v] e] (d/req-hdrs v)))) "Content-Type")]
+    {:rsp {:200 {:headers (merge {"Content-Type" "text/html"
+                                  "Access-Control-Allow-Methods" (s/join ", " m)
+                                  "Access-Control-Allow-Headers" (s/join ", " h)}
+                                 (when (not (false? cors))
+                                   {"Access-Control-Allow-Origin" "*"}))}}}))
+
+(defn- swap-placeholders
+  [rsp tree aug-req]
+  (if (get-in rsp [:headers "Protean-error"])
+    rsp
+    (ph/swap rsp tree (ph/response-bag rsp aug-req) :gen-all true)))
+
+(defn- transform-cors
+  [rsp {:keys [cors]}]
+  (if (false? cors)
+    rsp
+    (merge-with merge {:headers {"Access-Control-Allow-Origin" "*"}} rsp)))
+
+(defn- serialise
+  [{:keys [status body] :as rsp} tree]
+  (let [ctype (str (or (get-in rsp [:headers "Content-Type"])
+                       (d/rsp-ctype (keyword (str status)) tree)))]
+    (cond
+      (nil? body)                            rsp
+      (string? body)                         rsp ;; Assume already coerced
+      (s/starts-with? ctype http/jsn-simple) (assoc rsp :body (coerce/jsn body))
+      (s/starts-with? ctype http/xml)        (assoc rsp :body (coerce/xml body))
+      :else                                  rsp)))
 
 
 ;; =============================================================================
 ;; Sim Execution
 ;; =============================================================================
 
-(defn- http-options [paths svc endpoint sim-cfg]
-  (let [e (get-in paths [svc endpoint])
-        m (map #(s/upper-case (name %)) (keys e))
-        h (keys (into {} (for [[k v] e] (d/req-hdrs v))))
-        hdrs {"Content-Type" "text/html"
-              "Access-Control-Allow-Methods" (s/join ", "  m)
-              "Access-Control-Allow-Headers" (s/join ", "  (conj h "Content-Type"))}
-        cors-hdrs (if (false? (:cors sim-cfg)) hdrs (assoc hdrs "Access-Control-Allow-Origin" "*"))]
-    [{:rsp {:200 {:headers cors-hdrs}}}]))
-
-(defn sim-rsp [protean-home {:keys [uri] :as req} paths sims]
+(defn sim-rsp [protean-home {:keys [uri request-method] :as req} paths sims]
   (let [svc (second (s/split uri #"/"))
         req-ep-raw (s/split uri (re-pattern (str "/" (name svc) "/")))
-        requested-endpoint (if (> (count req-ep-raw) 1) (second req-ep-raw) "/")
-        endpoint (to-endpoint requested-endpoint paths svc)
-        method (:request-method req)
-        rules (get-in sims [svc endpoint method])
-        sim-cfg (:sim-cfg sims)
-        tree (if-let [x (get-in paths [svc endpoint method])]
-               x
-               (when (= method :options) (http-options paths svc endpoint sim-cfg)))
-        request (sim-req req endpoint svc)
-        corpus {}
-        execute (execute-fn tree corpus requested-endpoint endpoint request)
-        default-success (binding [sim/*protean-home* protean-home
-                                  sim/*tree* tree
-                                  sim/*request* request
-                                  sim/*corpus* corpus]
-                          (if (false? (:validating sim-cfg))
-                            (sim/success)
-                            (sim/if-valid (sim/success))))
-        response (or (some identity (map execute rules)) default-success)]
-    (log-info "sim cfg : " sim-cfg)
+        req-endpoint (if (> (count req-ep-raw) 1) (second req-ep-raw) "/")
+        endpoint (to-endpoint req-endpoint paths svc)
+        sim-cfg (merge (:sim-cfg sims)
+                       (get-in sims [svc :sim-cfg])
+                       (get-in sims [svc endpoint :sim-cfg])
+                       (get-in sims [svc endpoint request-method :sim-cfg]))
+        tree (or (get-in paths [svc endpoint request-method])
+                 (when (= request-method :options) (http-options paths svc endpoint sim-cfg)))]
     (if (not tree)
-      (do
-        (log-warn "warning - no endpoint found for" [uri method])
-        (if-let [supported-methods (keys (get-in paths [svc endpoint]))]
-          (protean-error-405 supported-methods)
-          (protean-error-404)))
-      (do
-        (log-debug "executed" (count rules) "rules for uri:" uri "(svc:" svc "endpoint:" endpoint "method:" method ")")
-        (log-debug "responding with" response)
-        (cond
-           (false? (:cors sim-cfg)) response
-           (map? response)          (merge-with merge {:headers {"Access-Control-Allow-Origin" "*"}} response)
-           :else                    {:headers {"Access-Control-Allow-Origin" "*"} :body response})))))
+      (do (log/warn "warning - no endpoint found for" [uri request-method])
+          (if-let [supported-methods (keys (get-in paths [svc endpoint]))]
+            (protean-error-405 supported-methods)
+            (protean-error-404)))
+      (let [rules (get-in sims [svc endpoint request-method])
+            aug-req (sim-req req protean-home tree svc req-endpoint endpoint)
+            rsp (when tree ((execute-fn aug-req sim-cfg) rules))]
+        (log/info "executed" (if rules "sim extension rules" "default rules")
+                  "for uri:" uri "(svc:" svc "endpoint:" endpoint
+                  "method:" request-method ")")
+        (if-let [r (and (map? rsp) (int? (:status rsp))
+                        (-> rsp
+                            (swap-placeholders tree aug-req)
+                            (transform-cors sim-cfg)
+                            (serialise tree)))]
+          (do (log/info "responding with status:" (:status r) "headers:" (:headers r) "body:" (:body r))
+              r)
+          (do (u/print-error (IllegalArgumentException. (s/join " " [
+                "Response:" (or rsp "'nil'") "does not match structure"
+                "{:status Int :headers Vector :body String}."
+                "Does your response comply with the codex ?"])))
+              (protean-error-500)))))))

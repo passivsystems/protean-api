@@ -1,13 +1,9 @@
 (ns protean.api.codex.document
   "Codex data extraction and truthiness functionality."
-  (:require [clojure.java.io :as io]
-            [environ.core :refer [env]]
+  (:require [clojure.string :as s]
             [me.rossputin.diskops :as dsk]
+            [protean.utils :as u]
             [protean.api.protocol.http :as h]))
-
-(defn custom-keys
-  "returns only keys which are not keywords"
-  [c] (seq (remove keyword? (keys c))))
 
 (defn to-seq
   "creates a sequence (for now aka 'tree' - needs renaming) that can be
@@ -21,14 +17,13 @@
 
 (defn get-in-tree
   "returns the first result for given sequence of keys from a tree (scope)"
-  [tree ks] (first (remove nil? (map #(get-in % ks) tree))))
-
-(defn git [tree ks] (get-in-tree tree ks))
+  [tree ks]
+  (first (remove nil? (map #(get-in % ks) tree))))
 
 (defn assoc-tree-item->
   "Extracts first out-ks in tree and assocs to target as in-k."
   [tree out-ks in-ks target]
-  (if-let [v (git tree out-ks)]
+  (if-let [v (get-in-tree tree out-ks)]
     (if (empty? v) target (assoc-in target in-ks v))
     target))
 
@@ -55,10 +50,10 @@
   [protean-home path codex-dir]
   (if (dsk/as-relative path)
     (let [locations (get-path-locations protean-home path codex-dir)
-          abs-path (first (filter dsk/exists? locations))]
+          abs-path (u/find dsk/exists? locations)]
       (if abs-path
         abs-path
-        (throw (Exception.
+        (throw (java.io.FileNotFoundException.
           (str "Could not find relative path: '" path "', looked in " locations)))))
     path))
 
@@ -67,37 +62,24 @@
   [protean-home path tree]
   (to-path-dir protean-home path (get-in-tree tree [:codex-dir])))
 
+(defn- param-fix
+  "Vectors param if not of type collection and marks as required"
+  [params]
+  (u/update-vals params #(if (coll? %) % (vector % :required))))
+
 ;; =============================================================================
 ;; Codex request
 ;; =============================================================================
 
-(defn- f [include-optional [k [v & attr]]]
-  (if (or include-optional (not (contains? (into #{} attr) :optional)))
-    [k v]))
+(defn qps [t] (param-fix (get-in-tree t [:req :query-params])))
 
-(defn qps [t include-optional]
-  (->> (git t [:req :query-params])
-       (map (partial f include-optional))
-       (into {})))
+(defn fps [t] (param-fix (get-in-tree t [:req :form-params])))
 
-(defn fps [t include-optional]
-  (->> (git t [:req :form-params])
-       (map (partial f include-optional))
-       (into {})))
-
-(defn recursive-filter [m k]
-  (filter #(and (map? %) (contains? % k)) (tree-seq map? vals m)))
-
-(defn mps
-  "Get matrix parameters from codex."
-  [t include-optional]
-  (->> (recursive-filter t :struct)
-       (first)
-       (:struct)
-       (map (partial f include-optional))
-       (map first)
-       (remove nil?)
-       (into #{})))
+(defn mps [t names]
+  (->> (filter #(s/starts-with? % ";") names)
+       (map (fn [n] (u/update-keys (get-in-tree t [:vars n :struct]) #(str n "." %))))
+       (into {})
+       param-fix))
 
 (defn- codex-req-hdrs [tree]
   ; we don't use get-in-tree as we want to merge definitions in all scopes here
@@ -106,60 +88,57 @@
 (defn req-ctype [tree]
   (let [hdrs (codex-req-hdrs tree)
         ctype (get hdrs h/ctype)
-        body-schema (git tree [:req :body-schema])
-        body-example (git tree [0 :req :body-examples])
-        body (git tree [:req :body])
-        default-ctype (git tree [:default-content-type])]
+        body-schema (get-in-tree tree [:req :body-schema])
+        body-example (get-in-tree tree [0 :req :body-examples])
+        body (get-in-tree tree [:req :body])
+        default-ctype (get-in-tree tree [:default-content-type])]
     (cond
       ctype ctype
       body-schema (h/mime-schema body-schema)
       body-example (h/mime body-example)
       body default-ctype)))
 
-(defn req-hdrs [tree]
+(defn req-hdrs
+  [tree]
   (let [ctype (req-ctype tree)
         ctype-hdr (if ctype {h/ctype ctype} {})]
-    (merge ctype-hdr (codex-req-hdrs tree))))
+    (param-fix (merge ctype-hdr (codex-req-hdrs tree)))))
 
-(defn body-req [t] (git t [:req :body]))
+(defn req-body [t] (get-in-tree t [:req :body]))
+
+(defn req-body-examples [t] (get-in-tree t [:req :body-examples]))
 
 ;; =============================================================================
 ;; Codex response
 ;; =============================================================================
 
 (defn- codex-rsp-hdrs [rsp-code tree]
-  (merge
-    (git tree [:rsp :headers])
-    (git tree [:rsp rsp-code :headers])))
+  (param-fix (merge (get-in-tree tree [:rsp :headers])
+                    (get-in-tree tree [:rsp rsp-code :headers]))))
 
 (defn rsp-ctype [rsp-code tree]
-  (let [ctype (get-in (codex-rsp-hdrs rsp-code tree) h/ctype)
-        body-schema (git tree [:rsp rsp-code :body-schema])
-        body-example (first (git tree [:rsp rsp-code :body-examples]))]
+  (let [ctype (get-in (codex-rsp-hdrs rsp-code tree) [h/ctype 0])
+        body-schema (get-in-tree tree [:rsp rsp-code :body-schema])
+        body-example (first (get-in-tree tree [:rsp rsp-code :body-examples]))]
     (cond
       ctype ctype
       body-schema (h/mime-schema body-schema)
       body-example (h/mime body-example))))
 
 (defn rsp-hdrs [rsp-code tree]
-  (let [ctype (rsp-ctype rsp-code tree)
-        ctype-hdr (if ctype {h/ctype ctype} {})]
-    (merge ctype-hdr (codex-rsp-hdrs rsp-code tree))))
+  (let [ctype (rsp-ctype rsp-code tree)]
+    (merge (when ctype (param-fix {h/ctype ctype}))
+           (codex-rsp-hdrs rsp-code tree))))
 
 (defn status-matching [tree f-e]
-  (let [filter (fn [m] (seq (filter #(re-matches f-e (name (key %))) (:rsp m))))
-        statuses (some identity (map filter tree))
-        include-defaults (fn [[k v]]
-      [k (update-in v [:headers] #(merge (git tree [:rsp :headers]) %))])]
-    (seq (into {} (map include-defaults statuses)))))
+ (->> tree
+      (map (fn [{:keys [rsp]}] (filter #(re-matches f-e (name (key %))) rsp)))
+      (some identity)
+      ; includes default headers, content type + unapply param-fix
+      (map (fn [[k v]] [k (assoc v :headers (u/update-vals (rsp-hdrs k tree) first))]))
+      (into {})
+      seq))
 
 (defn success-status [tree] (status-matching tree #"[123]\d\d"))
 
 (defn error-status [tree] (status-matching tree #"[45]\d\d"))
-
-
-;; =============================================================================
-;; Codex fragment functions (codex fragments that travel with tests etc)
-;; =============================================================================
-
-(defn azn [c] (get-in c [:headers h/azn]))

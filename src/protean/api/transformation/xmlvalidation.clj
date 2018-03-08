@@ -1,11 +1,10 @@
-(ns protean.api.transformation.xmlvalidation)
-
-(import 'javax.xml.XMLConstants)
-(import 'org.xml.sax.SAXException)
-(import 'javax.xml.validation.SchemaFactory)
-(import 'java.io.File)
-(import 'java.io.StringReader)
-(import 'javax.xml.transform.stream.StreamSource)
+(ns protean.api.transformation.xmlvalidation
+  (:import [javax.xml XMLConstants]
+           [org.xml.sax SAXException]
+           [javax.xml.validation SchemaFactory]
+           [java.io File]
+           [java.io StringReader]
+           [javax.xml.transform.stream StreamSource]))
 
 (defn- validator [schema]
   (.newValidator

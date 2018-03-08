@@ -5,7 +5,9 @@
             [clojure.zip :as z]
             [clojure.data :as data]
             [cheshire.core :as jsn]
+            [protean.utils :as u]
             [protean.api.codex.document :as d]
+            [protean.api.codex.placeholder :as ph]
             [protean.api.protocol.http :as h]
             [protean.api.protocol.protean :as pp]
             [protean.api.transformation.coerce :as c]
@@ -13,101 +15,96 @@
             [protean.api.transformation.xmlvalidation :as xv])
   (:import java.io.ByteArrayInputStream))
 
+(defn- invalid-values
+  [params tree items]
+  (let [invalid (fn [value pattern]
+                  (when (and (not (s/blank? (str pattern)))
+                             (empty? (filter #(re-matches pattern %) value)))
+                    (str " value: '" (s/join "," value) "' does not match: " pattern)))
+        patterns (into {} (for [[k v] params] {k (ph/regex-pattern tree (first v))}))
+        select-items (into {} (for [[k v] (select-keys items (keys patterns))]
+                                (if (.contains (get params k) :multiple)
+                                  {k (s/split v #",")}
+                                  {k [v]})))
+        select-patterns (select-keys patterns (keys items))
+        errors (merge-with invalid select-items select-patterns)]
+    (u/remove-nils errors)))
+
+(defn- validate
+  [vtype tree params received-items]
+  (let [expected (set (keys (remove #(.contains (second %) :optional) params)))
+        received (set (keys received-items))
+        invalids (invalid-values params tree received-items)]
+    (cond
+      (not (subset? expected received)) (str "expected " vtype ": " (s/join ", " expected) " (was " (s/join "," received) ")")
+      (not (empty? invalids))           (str "invalid "  vtype ": " (s/join ", " (map (fn [[k v]] (str k v)) invalids)))
+      :else nil)))
+
 (defn validate-status [expected-status payload]
-  (when (not (= (str (:status payload)) expected-status))
+  (when-not (= (str (:status payload)) expected-status)
     (str "expected status " expected-status " (was " (:status payload) ")")))
 
-(defn validate-headers [expected-headers payload]
-  (when expected-headers
-    (let [expected (set (map #(s/lower-case %) (keys expected-headers)))
-          received (set (map #(s/lower-case %) (keys (:headers payload))))]
-      (when (not (subset? expected received))
-        (str "expected headers " (s/join "," expected) " (was " (s/join "," received) ")")))))
+(defn validate-headers
+  ([{:keys [headers tree] :as payload}]
+    (validate-headers (d/req-hdrs tree) payload))
+  ([expected-hdrs {:keys [headers tree]}]
+    (defn fix [v] (when v (s/replace v #"; charset=.*" "")))
+    (validate "headers" tree (-> (u/update-keys expected-hdrs s/lower-case)
+                                 (update "content-type" #(when % (update % 0 fix)))
+                                 u/remove-nils)
+                             (-> (u/update-keys headers s/lower-case)
+                                 (update "content-type" fix)
+                                 u/remove-nils))))
 
-(defn validate-query-params [request tree]
-  (when-let [rpms (d/qps tree false)]
-    (let [expected-qps (keys rpms)
-          received-qps (map name (keys (:query-params request)))]
-      (when (not (every? (set received-qps) expected-qps))
-        (str "expected query params " expected-qps " (was " (s/join "," received-qps) ")")))))
+(defn validate-query-params
+  [{:keys [query-params tree]}]
+  (validate "query params" tree (d/qps tree) query-params))
 
-(defn validate-form-params [request tree]
-  (when-let [f-keys (d/fps tree false)]
-    (let [expected-form (keys f-keys)
-          received-form (keys (:form-params request))]
-      (when (not (every? (set received-form) expected-form))
-        (str "expected form params " expected-form " (was " received-form ")")))))
+(defn validate-form-params
+  [{:keys [form-params tree]}]
+  (validate "form params" tree (d/fps tree) form-params))
 
-(defn validate-matrix-params [request tree]
-  (let [rmp (pp/matrix-params request)
-        cmp (d/mps tree false)]
-    (when-not (every? rmp cmp)
-      (str "expected matrix params " cmp " (was " rmp ")"))))
+(defn validate-matrix-params
+  [{:keys [matrix-params path-params tree] :as request}]
+  (validate "matrix params" tree (d/mps tree (keys path-params)) matrix-params))
 
 (defn- zip-str [s] (z/xml-zip (x/parse (ByteArrayInputStream. (.getBytes s)))))
 
 (defn- map-vals [m k] (set (keep k (tree-seq #(or (map? %) (vector? %)) identity m))))
 
-(defn- validate-xml-body [payload schema codex-body]
-  (println "xml schema : " schema)
+(defn- validate-xml-body [{:keys [body]} schema codex-body]
   (if schema
-    (let [body (:body payload)
-          validation (xv/validate schema body)]
-      (when (not (:success validation))
+    (let [validation (xv/validate schema body)]
+      (when-not (:success validation)
         (str "Xml body: " body "\ndid not conform to xml schema " schema " : " (:message validation))))
     (if codex-body
       (let [tags-in-str (fn [s] (map-vals (zip-str s) :tag))
             expected-tags (tags-in-str (c/pretty-xml codex-body))
-            received-tags (tags-in-str (:body payload))]
+            received-tags (tags-in-str body)]
         (if (= received-tags expected-tags)
           (str "Xml body not valid - expected " expected-tags " but received " received-tags))))))
 
-(defn- validate-jsn-body [payload schema codex-body]
+(defn- validate-jsn-body [{:keys [body]} schema codex-body]
   (if schema
-    (let [body (:body payload)
-          validation (jv/validate schema body)]
-      (when (not (:success validation))
+    (let [validation (jv/validate schema body)]
+      (when-not (:success validation)
         (str "Json body: " body "\ndid not conform to json schema " schema " : " (:message validation))))
     (when codex-body
       (try
-        (let [body-jsn (jsn/parse-string (:body payload))]
+        (let [body-jsn (jsn/parse-string body)]
           (if (map? codex-body)
             (let [expected-keys (set (keys codex-body))
                   received-keys (set (keys body-jsn))]
-              (when (not (= received-keys expected-keys))
+              (when-not (= received-keys expected-keys)
                 (str "Json body not valid - expected " expected-keys " but received " received-keys)))
             (contains? codex-body body-jsn)))
-        (catch Exception e (str "Could not parse json:" (:body payload) "\n" (.getMessage e)))))))
+        (catch Exception e (str "Could not parse json:" body "\n" (.getMessage e)))))))
 
-(defn parse-hdr [hdr]
-  (let [parse-qlf (fn [qlf]
-         (if qlf
-           (let [[k v _] (map s/trim (s/split qlf #"="))]
-              {k v})))
-        [value rest] (s/split hdr #";")
-        qlfs (into {} (parse-qlf rest))]
-      [(s/trim value) qlfs]))
-
-(defn- validate-ctype [expected-ctype actual-ctype]
-  (when expected-ctype
-    (let [[expected expected-qlfs](parse-hdr expected-ctype)
-          [actual actual-qlfs] (parse-hdr actual-ctype)
-          fix (fn [q] (assoc q "charset" (s/upper-case (str (get q "charset")))))]
-      (or
-        (not (= expected actual))
-        (first (data/diff (fix expected-qlfs) (fix actual-qlfs)))))))
-
-(defn validate-body [payload expected-ctype schema codex-body]
+(defn validate-body [payload schema codex-body]
   (if payload
     (let [ctype (pp/ctype payload)]
       (cond
-        (validate-ctype expected-ctype ctype)
-          (str "expected content-type " expected-ctype " (was " ctype ")")
-        (h/xml? ctype)
-          (validate-xml-body payload schema codex-body)
-        (h/txt? ctype)
-          nil
-        ; TODO should we validate that the ctype is set as json?
-        :else
-          (validate-jsn-body payload schema codex-body)))
+        (h/jsn? ctype) (validate-jsn-body payload schema codex-body)
+        (h/xml? ctype) (validate-xml-body payload schema codex-body)
+        :else          nil))
     (str "expected body but was empty")))

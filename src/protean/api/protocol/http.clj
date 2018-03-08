@@ -13,18 +13,18 @@
 ;; Status codes
 ;;;;;;;;;;;;;;;
 
-(defn success? [status]
-  (.startsWith (str status) "2"))
-
-(defn client-err? [status]
-  (.startsWith (str status) "4"))
+; (defn success? [status]
+;   (.startsWith (str status) "2"))
+;
+; (defn client-err? [status]
+;   (.startsWith (str status) "4"))
 
 
 ;; Headers
 ;;;;;;;;;;
 
 (def ctype "Content-Type")
-(def azn "Authorization")
+(def auth "Authorization")
 (def loc "Location")
 
 
@@ -113,7 +113,7 @@
 
 (defn xml? [c] (= c xml))
 (defn txt? [c] (= c txt))
-
+(defn jsn? [c] (.startsWith (str c) jsn-simple))
 
 ;; Response
 ;;;;;;;;;;;

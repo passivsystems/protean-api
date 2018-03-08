@@ -2,30 +2,14 @@
   "API for powering sim extensions."
   (:require [clojure.string :as s]
             [cemerick.pomegranate :as pom]
-            [protean.utils :as utils]
-            [protean.api.protocol.http :as h]
-            [protean.api.protocol.protean :as p]
+            [protean.utils :as u]
             [protean.api.codex.document :as d]
             [protean.api.transformation.coerce :as c]
-            [protean.api.codex.placeholder :as ph]
             [protean.api.transformation.validation :as v]
-            [clj-http.client :as clt]
-            [overtone.at-at :as at]
-            [environ.core :as ec])
+            [overtone.at-at :as at])
   (:use [taoensso.timbre :as timbre
      :only (debug info warn)
      :rename {debug log-debug info log-info warn log-warn}]))
-
-(defn- pretty-str [s ctype]
-  (cond
-    (h/xml? ctype) (c/pretty-xml s)
-    (h/txt? ctype) s
-    :else (c/pretty-js s)))
-
-(def ^:dynamic *protean-home*)
-(def ^:dynamic *tree*)
-(def ^:dynamic *request*)
-(def ^:dynamic *corpus*)
 
 (defn dependencies [xs]
   (pom/add-dependencies
@@ -38,11 +22,12 @@
 ;; Sim Machinery Access
 ;; =============================================================================
 
-(defn qslurp
-  "Quantum slurp, used to look for sim extension referenced resources in
-   multiple places.
+(defn find-path
+  "Quantum path lookup, used to look for sim extension referenced resources in
+   multiple places. Resolves relative paths to absolute.
    p is a resource path (probably relative)."
-  [p] (slurp (d/to-path *protean-home* p *tree*)))
+  [{:keys [protean-home tree] :as request} p]
+  (d/to-path protean-home p tree))
 
 
 ;; =============================================================================
@@ -54,22 +39,13 @@
 (defn- job
   "Creates a job to be scheduled from provided delay - will ensure dynamic bindings are preserved"
   [delayed]
-  (let [captured_tree *tree*
-        captured_request *request*
-        captured_corpus *corpus*]
-    (fn []
-      (try
-        (do
-          (log-debug "timeout - executing job")
-          (binding [*tree* captured_tree
-                    *request* captured_request
-                    *corpus* captured_corpus]
-            @delayed))
-      (catch Exception e (utils/print-error e))))))
+  (fn []
+    (log-debug "timeout - executing job")
+    (try @delayed
+      (catch Exception e (u/print-error e)))))
 
 (defn at-delayed [ms-time delayed]
   (at/at ms-time (job delayed) schedule-pool)
-;  (at/show-schedule schedule-pool)
   nil)
 
 (defmacro at
@@ -79,7 +55,6 @@
 (defn after-delayed
   [delay-ms delayed]
   (at/after delay-ms (job delayed) schedule-pool)
-;  (at/show-schedule schedule-pool)
   nil)
 
 (defmacro after
@@ -95,188 +70,73 @@
 ;; Requests
 ;; =============================================================================
 
-(defn body [] (:body *request*))
+(defn body [request] (:body request))
 
 (defn body-clj
-  ([] (c/clj (body)))
-  ([k] (c/clj (body) (or k false))))
+  ([request] (c/clj (body request)))
+  ([request k] (c/clj (body request) (or k false))))
 
-(defn query-param [p] (get-in *request* [:query-params p]))
+(defn header-param [request p] (get-in request [:headers (s/lower-case p)]))
 
-(defn path-param [p] (get-in *request* [:path-params p]))
+(defn query-param [request p] (get-in request [:query-params p]))
 
-(defn flip [f]
-  (fn [x y] (f y x)))
+(defn path-param [request p] (get-in request [:path-params p]))
 
-(defn matrix-params
-  "Gets matrix params given a matrix param placeholder.
-   E.G. /groups${;groupFilter} has a
-   matrix param placeholder ';groupFilter' which can be associated with several
-   matrix params."
-  ([mp-name]
-   (when-let [pp (path-param (str ";" mp-name))]
-     (->> pp
-       ((flip s/split) #";")
-       (filter seq)
-       (map #(s/split % #"="))
-       (into {})))))
+(defn matrix-param [request p] (get-in request [:matrix-params p]))
 
-(defn param [p] (get-in *request* [:params p]))
+(defn matrix-params [{:keys [matrix-params]} p]
+  (-> (filter (fn [[k _]] (s/starts-with? k p)) matrix-params)
+      (u/update-keys #(s/join "." (rest (s/split % #"\."))))))
 
-(defn route-param
-  "Simplisticly grabs the last part of a uri"
-  [route-params]
-  (last (s/split (:* route-params) #"/")))
+(defn param [request p] (get-in request [:params p]))
 
-(defn form-param [p] (get-in *request* [:form-params p]))
+(defn form-param [request p] (get-in request [:form-params p]))
 
 (defn body-param
-  ([p] ((body-clj) p))
-  ([p k] (p (body-clj k))))
+  ([request p] (get-in (body-clj request) (if (vector? p) p [p])))
+  ([request p k] (get-in (body-clj request k) (if (vector? p) p [p]))))
 
-(defn header [h] (get-in *request* [:headers h]))
+(defn header [request h] (get-in request [:headers h]))
 
 
 ;; =============================================================================
 ;; Responses
 ;; =============================================================================
 
-(defn- format-rsp [rsp-entry]
-  (if rsp-entry
-    (let [status-code (Integer/parseInt (name (key rsp-entry)))
-          rsp (val rsp-entry)
-          body-url (first (:body-examples rsp))
-          headers (:headers rsp)
-          headers_w_ctype (if (and body-url (not (get-in headers [h/ctype])))
-                            (assoc headers h/ctype (h/mime body-url))
-                            headers)
-          raw-body (if body-url (slurp (d/to-path *protean-home* body-url *tree*)))
-          body (if (h/txt? (get headers_w_ctype h/ctype))
-                  (s/trim-newline raw-body)
-                  raw-body)
-          response {:status status-code :headers headers_w_ctype :body body}]
-      (log-debug "rsp headers including inferred content type : " headers_w_ctype)
-      (log-debug "formatting rsp:" rsp)
-      (log-debug "returning :" response)
-      response)
-    (log-info "no response found to handle request")))
+(defn success-responses
+  "Note here request is a request with tree and other data blended in"
+  [{:keys [response]}] (:success response))
 
-(defn success
-  "Returns a randomly selected success response as defined for endpoint"
-  []
-  (let [successes (d/success-status *tree*)
-        {:keys [svc request-method uri]} *request*
-        success (format-rsp (rand-nth successes))]
-    (if (empty? successes)
-      (log-warn "warning - no successes found for endpoint" [svc uri request-method])
-      (ph/swap success *tree* {} :gen-all true))))
+(defn error-responses
+  "Note here request is a request with tree and other data blended in"
+  [{:keys [response]}] (:error response))
 
-(defn error
-  "Returns a specific or randomly selected error response for an endpoint"
-  ([x]
-    (let [errors (d/error-status *tree*)
-          {:keys [svc request-method uri]} *request*
-          error (filter #(= (first %) (keyword (str x))) errors)
-          error-rsp (format-rsp (first error))]
-      (when (empty? errors) (log-warn "warning - no errors found for endpoint" [svc uri request-method]))
-      (when (empty? error) (log-warn "warning - sim extension error not described in codex" [svc uri request-method]))
-      (if (seq error) (ph/swap error-rsp *tree* {} :gen-all true) {:status x})))
-  ([] (error (Long. (name (first (rand-nth (d/error-status *tree*))))))))
-
-(defn- rsp [s hs b] {:status s :headers hs :body b})
+(defn responses [request]
+  (concat (success-responses request) (error-responses request)))
 
 (defn respond
-  ([status] {:status status})
-  ([status & {:keys [body-url body headers]}]
-    (if body-url
-      (rsp status {h/ctype (h/mime body-url)} (qslurp body-url))
-      (rsp status headers body))))
-
-(defn respond-400
-  "Get a 400 error body template from either defaults.edn or our code default"
-  [detail]
-  (let [desc (or (d/get-in-tree *tree* [:errors :400 :description]) (:description (:400 (p/errors))))
-        tpl (or (d/get-in-tree *tree* [:errors :400 :template]) (:template (:400 (p/errors))))
-        body (assoc tpl desc detail)]
-    (respond 400 :headrs {h/ctype h/jsn} :body (c/js body))))
-
-(defn encode
-  "Encode d using header content type information in request"
-  [d]
-  (println "accept : " (get-in *request* [:headers "accept"]))
-  (let [accept (p/accept *request*)]
-  (cond
-    (= accept h/xml) (c/xml d)
-    (= accept h/txt) (str d)
-    :else (c/js d))))
-
-(defn log [what where]
-  (let [to-log [(str (java.util.Date.)) what]]
-    (spit where (with-out-str (clojure.pprint/pprint to-log)) :append true)))
-
-(defn make-request
-  "Makes an API request"
-  [method url content]
-  (let [the-request (assoc content
-                      :url url
-                      :method method
-                      :throw-exceptions false)
-        res (clt/request the-request)]
-    (log-debug "res" res)
-    (if-let [log-file (:log content)]
-      (log [(str "Response from " (:url content)) res] log-file))
-    res))
-
-(defn simple-request
-  [method url hdrs body]
-  (make-request method url
-                {:content-type (header "content-type")
-                 :headers (merge
-                            (dissoc (:headers *request*) "content-length")
-                            hdrs)
-                 :body body}))
-
-(defn post
-  ([url body] (post nil body))
-  ([url hdrs body] (simple-request :post url hdrs body)))
-
-(defn put
-  ([url body] (put url nil body))
-  ([url hdrs body] (simple-request :put url hdrs body)))
-
-(defn patch
-  ([url body] (patch url nil body))
-  ([url hdrs body] (simple-request :patch url hdrs body)))
-
-(defn env
-  "Accesses environment variables"
-  [name] (ec/env name))
-
+  ([request status] (u/find #(= (:status %) status) (responses request)))
+  ([request status body] (assoc (respond request status) :body body)))
 
 ;; =============================================================================
 ;; Validation of Request by Codex Specification
 ;; =============================================================================
 
-(defn- body-errors [request tree]
-  (let [expected-ctype (d/req-ctype tree)
-        schema (d/to-path *protean-home* (d/get-in-tree tree [:req :body-schema]) tree)
-        codex-body (d/body-req tree)]
-    (v/validate-body request expected-ctype schema codex-body)))
+(defn- body-errors [request protean-home tree]
+  (let [schema (d/to-path protean-home (d/get-in-tree tree [:req :body-schema]) tree)
+        codex-body (d/req-body tree)]
+    (v/validate-body request schema codex-body)))
 
-(defn req-errors
+(defn validate
   "Validate request against codex specification"
-  []
-  (let [errors (seq (remove nil? (conj (v/validate-headers (d/req-hdrs *tree*) *request*)
-                                       (v/validate-query-params *request* *tree*)
-                                       (v/validate-form-params *request* *tree*)
-                                       (v/validate-matrix-params *request* *tree*)
-                                       (body-errors *request* *tree*))))]
-    (when errors (log-warn (s/join "," errors)))
-    errors))
-
-(defmacro if-valid
-  ([then] `(let [errs# (req-errors)]
-             (if (empty? errs#) ~then (respond-400 (s/join " " errs#)))))
-  ([then else] `(if (empty? (req-errors)) ~then ~else)))
-
-(defmacro when-valid [then] `(when (empty? (req-errors)) ~then))
+  [request]
+  (let [{:keys [tree protean-home]} request
+        raw {:header-errors (v/validate-headers request)
+             :query-errors (v/validate-query-params request)
+             :form-errors (v/validate-form-params request)
+             :matrix-errors (v/validate-matrix-params request)
+             :body-errors (body-errors request protean-home tree)}
+        errors (into {} (remove (fn [[k v]] (nil? v)) raw))]
+    (when-not (empty? errors)
+      (log-warn (s/join "," errors))
+      errors)))

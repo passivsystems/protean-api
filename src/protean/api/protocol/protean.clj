@@ -15,12 +15,6 @@
 
 (defn accept [req] (get-in req [:headers "accept"]))
 
-(defn matrix-params [request]
- (if-let [param-pairs (rest (s/split (:uri request) #";"))]
-   (set (map #(first (s/split % #"=")) param-pairs))
-   #{}))
-
-
 ;; Response
 ;;;;;;;;;;;
 

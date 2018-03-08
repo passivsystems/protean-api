@@ -1,9 +1,0 @@
-(ns protean.test.simplesim
-  (:require [protean.api.transformation.sim :refer :all]))
-
-{
-  "sample" {
-    "simple" {:get [#(if-valid (success))]}
-    "complex" {:get [#(if-valid (success) (respond 403))]}
-  }
-}
