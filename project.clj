@@ -1,4 +1,4 @@
-(defproject protean-api "0.12.0-alpha.1"
+(defproject protean-api "0.12.0"
   :description "Protean API."
   :url "http://github.com/passivsystems/protean-api"
   :license {:name "Apache License v2.0"
