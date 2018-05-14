@@ -82,6 +82,12 @@
 (expect {:status 204 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
         (sim-rsp (req :patch "/sample/simple" nil body nil) cdx-1 {}))
 
+(expect {:status 200 :headers {"Content-Type" "text/html"
+                               "Access-Control-Allow-Methods" "GET, HEAD, PUT, POST, DELETE, PATCH"
+                               "Access-Control-Allow-Headers" "Content-Type",
+                               "Access-Control-Allow-Origin" "*"} :body nil}
+        (sim-rsp (req :options "/sample/simple" nil body nil) cdx-1 {}))
+
 (expect {:status 404 :headers {"Protean-error" "Not Found"}}
         (sim-rsp (req :get "/sample/404" nil body nil) cdx-1 {}))
 
