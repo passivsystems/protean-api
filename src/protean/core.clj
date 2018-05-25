@@ -72,6 +72,18 @@
 
 (defn- protean-error-500 [] {:status 500 :headers {"Protean-error" "Error in sim"}})
 
+(defn- http-options [paths svc endpoint {:keys [cors]}]
+  (let [e (get-in paths [svc endpoint])
+        m (map #(s/upper-case (name %)) (keys e))
+        h (conj (keys (into {} (for [[_ v] e] (d/req-hdrs v)))) "Content-Type")]
+    {:status 200
+     :headers (merge {"Content-Type" "text/html"
+                      "Access-Control-Allow-Methods" (s/join ", " m)
+                      "Access-Control-Allow-Headers" (s/join ", " h)}
+                     (when (not (false? cors))
+                       {"Access-Control-Allow-Origin" "*"}))
+      :body nil}))
+
 (defn- execute-fn
   "Prepare bindings for use through out sim execution context.
    Handle rules processing."
@@ -87,16 +99,6 @@
           rule           (apply rule [aug-req])
           :else          (first (sim/success-responses aug-req)))
         (catch Exception e (u/print-error e) (protean-error-500))))))
-
-(defn- http-options [paths svc endpoint {:keys [cors]}]
-  (let [e (get-in paths [svc endpoint])
-        m (map #(s/upper-case (name %)) (keys e))
-        h (conj (keys (into {} (for [[_ v] e] (d/req-hdrs v)))) "Content-Type")]
-    {:rsp {:200 {:headers (merge {"Content-Type" "text/html"
-                                  "Access-Control-Allow-Methods" (s/join ", " m)
-                                  "Access-Control-Allow-Headers" (s/join ", " h)}
-                                 (when (not (false? cors))
-                                   {"Access-Control-Allow-Origin" "*"}))}}}))
 
 (defn- swap-placeholders
   [rsp tree aug-req]
@@ -135,19 +137,20 @@
                        (get-in sims [svc :sim-cfg])
                        (get-in sims [svc endpoint :sim-cfg])
                        (get-in sims [svc endpoint request-method :sim-cfg]))
-        tree (or (get-in paths [svc endpoint request-method])
-                 (when (= request-method :options) (http-options paths svc endpoint sim-cfg)))]
+        tree (get-in paths [svc endpoint request-method])]
     (if (not tree)
-      (do (log/warn "warning - no endpoint found for" [uri request-method])
-          (if-let [supported-methods (keys (get-in paths [svc endpoint]))]
-            (protean-error-405 supported-methods)
-            (protean-error-404)))
+      (if (= request-method :options)
+        (http-options paths svc endpoint sim-cfg)
+        (do (log/warn "warning - no endpoint found for" [uri request-method])
+            (if-let [supported-methods (keys (get-in paths [svc endpoint]))]
+              (protean-error-405 supported-methods)
+              (protean-error-404))))
       (let [rules (get-in sims [svc endpoint request-method])
             aug-req (sim-req req protean-home tree svc req-endpoint endpoint)
             rsp (when tree ((execute-fn aug-req sim-cfg) rules))]
         (log/info "executed" (if rules "sim extension rules" "default rules")
-                  "for uri:" uri "(svc:" svc "endpoint:" endpoint
-                  "method:" request-method ")")
+                  "for uri:" uri "body:" (:body aug-req)
+                  "(svc:" svc "endpoint:" endpoint "method:" request-method ")")
         (if-let [r (and (map? rsp) (int? (:status rsp))
                         (-> rsp
                             (swap-placeholders tree aug-req)
