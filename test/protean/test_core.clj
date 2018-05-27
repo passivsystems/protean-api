@@ -8,7 +8,7 @@
             [taoensso.timbre :as l]
             [me.rossputin.diskops :as dsk]))
 
-(defn- sim-rsp [req cdx sim] (core/sim-rsp (dsk/pwd) req cdx sim))
+(defn- sim-rsp [req cdx sim] (core/sim-rsp (dsk/pwd) req cdx (list sim)))
 
 (l/set-level! :info)
 

@@ -133,10 +133,11 @@
         req-ep-raw (s/split uri (re-pattern (str "/" (name svc) "/")))
         req-endpoint (if (> (count req-ep-raw) 1) (second req-ep-raw) "/")
         endpoint (to-endpoint req-endpoint paths svc)
-        sim-cfg (merge (:sim-cfg sims)
-                       (get-in sims [svc :sim-cfg])
-                       (get-in sims [svc endpoint :sim-cfg])
-                       (get-in sims [svc endpoint request-method :sim-cfg]))
+        sim (first (filter #(get-in % [svc endpoint request-method]) sims))
+        sim-cfg (merge (:sim-cfg sim)
+                       (get-in sim [svc :sim-cfg])
+                       (get-in sim [svc endpoint :sim-cfg])
+                       (get-in sim [svc endpoint request-method :sim-cfg]))
         tree (get-in paths [svc endpoint request-method])]
     (if (not tree)
       (if (= request-method :options)
@@ -145,7 +146,7 @@
             (if-let [supported-methods (keys (get-in paths [svc endpoint]))]
               (protean-error-405 supported-methods)
               (protean-error-404))))
-      (let [rules (get-in sims [svc endpoint request-method])
+      (let [rules (get-in sim [svc endpoint request-method])
             aug-req (sim-req req protean-home tree svc req-endpoint endpoint)
             rsp (when tree ((execute-fn aug-req sim-cfg) rules))]
         (log/info "executed" (if rules "sim extension rules" "default rules")
