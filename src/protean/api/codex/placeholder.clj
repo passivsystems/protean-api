@@ -111,7 +111,7 @@
      (= t :Int)     "^-?\\d{1,10}$"
      (= t :Long)    "^-?\\d{1,19}$"
      (= t :Double)  "^(-?)(0|([1-9][0-9]*))(\\.[0-9]+)?$"
-     (= t :Boolean) "[true|false]"
+     (= t :Boolean) "(true|false)"
      (= t :Uuid)    "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}"
      (= t :Json)    "^[{].*[}]"
      :else          "")))
