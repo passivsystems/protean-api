@@ -148,19 +148,16 @@
               (protean-error-404))))
       (let [rules (get-in sim [svc endpoint request-method])
             aug-req (sim-req req protean-home tree svc req-endpoint endpoint)
-            rsp (when tree ((execute-fn aug-req sim-cfg) rules))]
-        (log/info "executed" (if rules "sim extension rules" "default rules")
-                  "for uri:" uri "body:" (:body aug-req)
-                  "(svc:" svc "endpoint:" endpoint "method:" request-method ")")
-        (if-let [r (and (map? rsp) (int? (:status rsp))
-                        (-> rsp
-                            (swap-placeholders tree aug-req)
-                            (transform-cors sim-cfg)
-                            (serialise tree)))]
-          (do (log/info "responding with status:" (:status r) "headers:" (:headers r) "body:" (:body r))
-              r)
-          (do (u/print-error (IllegalArgumentException. (s/join " " [
-                "Response:" (or rsp "'nil'") "does not match structure"
-                "{:status Int :headers Vector :body String}."
-                "Does your response comply with the codex ?"])))
-              (protean-error-500)))))))
+            r (when tree ((execute-fn aug-req sim-cfg) rules))
+            rsp (and (map? r)
+                     (int? (:status r))
+                     (-> r
+                         (swap-placeholders tree aug-req)
+                         (transform-cors sim-cfg)
+                         (serialise tree)))]
+        (or rsp
+            (do (u/print-error (IllegalArgumentException. (s/join " " [
+                  "Response:" (or rsp "'nil'") "does not match structure"
+                  "{:status Int :headers Vector :body String}."
+                  "Does your response comply with the codex ?"])))
+                (protean-error-500)))))))

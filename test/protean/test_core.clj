@@ -5,12 +5,24 @@
             [protean.api.protocol.http :as h]
             [protean.api.codex.reader :as r]
             [expectations :refer :all]
-            [taoensso.timbre :as l]
             [me.rossputin.diskops :as dsk]))
 
-(defn- sim-rsp [req cdx sim] (core/sim-rsp (dsk/pwd) req cdx (list sim)))
-
-(l/set-level! :info)
+(defn- sim-rsp
+  [req cdx sim]
+  (println "\n--------------------------test-sim-rsp--------------------------")
+  (println req)
+  (let [{:keys [request-method uri query-params form-params]} req
+        r (core/sim-rsp (dsk/pwd) req cdx (list sim))]
+    (println "request with"
+             "\n    method:" request-method
+             "\n    uri:" uri
+             "\n    query-params:" query-params
+             "\n    form-params:" form-params
+             "\nresponded with"
+             "\n    status:" (:status r)
+             "\n    headers:" (:headers r)
+             "\n    body:" (:body r))
+    r))
 
 (def json-hdrs {"Access-Control-Allow-Origin" "*"
                 "Content-Type" "application/json; charset=utf-8"})
@@ -344,8 +356,8 @@
   \"headerPlaceholder2\": \"yyy\",
   \"queryPlaceholder\": \"sweet\",
   \"matrixPlaceholder\": \"juice\",
-  \"formPlaceholder\": \"me\"
+  \"formPlaceholder\": \"candy\"
 }\n")
 
 (expect {:status 200 :headers (merge json-hdrs {"location" "outputs/123/xxx"}) :body output-form}
-        (sim-rsp (req :post "/sample/inputs;m=juice/123/form?q=sweet" {"h" "Bearer xxx yyy"} nil {"f" "me"}) cdx-7 nil))
+        (sim-rsp (req :post "/sample/inputs;m=juice/123/form?q=sweet" {"h" "Bearer xxx yyy"} nil {"f" "candy"}) cdx-7 nil))
