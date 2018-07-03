@@ -15,13 +15,15 @@
             [protean.api.transformation.xmlvalidation :as xv])
   (:import java.io.ByteArrayInputStream))
 
+(defn escape-regex [v] (s/replace v #"[()&^%#!?*.+]"  #(str "\\" %)))
+
 (defn- invalid-values
   [params tree items]
   (let [invalid (fn [value pattern]
                   (when (and (not (s/blank? (str pattern)))
                              (empty? (filter #(re-matches pattern %) value)))
                     (str " value: '" (s/join "," value) "' does not match: " pattern)))
-        patterns (into {} (for [[k v] params] {k (ph/regex-pattern tree (first v))}))
+        patterns (into {} (for [[k v] params] {k (ph/regex-pattern tree (escape-regex (first v)))}))
         select-items (into {} (for [[k v] (select-keys items (keys patterns))]
                                 (if (.contains (get params k) :multiple)
                                   {k (s/split v #",")}

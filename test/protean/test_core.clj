@@ -71,7 +71,10 @@
       :put [{:rsp {:204 {}}}]
       :post [{:rsp {:201 {:headers {"Location" "over here"}}}}]
       :delete [{:rsp {:204 {}}}]
-      :patch [{:rsp {:204 {}}}]
+      :patch [{
+        :req {:headers {"Content-Type" ["application/json-patch+json" :required]}}
+        :rsp {:204 {}}
+      }]
     }
   }
 })
@@ -92,7 +95,7 @@
         (sim-rsp (req :delete "/sample/simple" nil body nil) cdx-1 {}))
 
 (expect {:status 204 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
-        (sim-rsp (req :patch "/sample/simple" nil body nil) cdx-1 {}))
+        (sim-rsp (req :patch "/sample/simple" {"Content-Type" "application/json-patch+json"} body nil) cdx-1 {}))
 
 (expect {:status 200 :headers {"Content-Type" "text/html"
                                "Access-Control-Allow-Methods" "GET, HEAD, PUT, POST, DELETE, PATCH"
