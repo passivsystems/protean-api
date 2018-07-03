@@ -78,8 +78,8 @@
         h (conj (keys (into {} (for [[_ v] e] (d/req-hdrs v)))) "Content-Type")]
     {:status 200
      :headers (merge {"Content-Type" "text/html"
-                      "Access-Control-Allow-Methods" (s/join ", " m)
-                      "Access-Control-Allow-Headers" (s/join ", " h)}
+                      "Access-Control-Allow-Methods" (s/join ", " (distinct m))
+                      "Access-Control-Allow-Headers" (s/join ", " (distinct h))}
                      (when (not (false? cors))
                        {"Access-Control-Allow-Origin" "*"}))
       :body nil}))
