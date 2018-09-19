@@ -114,9 +114,14 @@
 (defn responses [request]
   (concat (success-responses request) (error-responses request)))
 
-(defn respond
-  ([request status] (u/find #(= (:status %) status) (responses request)))
-  ([request status body] (assoc (respond request status) :body body)))
+(defn response
+  ([request status]
+    (let [rs (responses request)]
+      (or (u/find #(= (:status %) status) rs)
+          (throw (IllegalArgumentException. (str
+            "Status: " status " not found. Codex responses are: "
+            (s/join ", " (map :status rs))))))))
+  ([request status body] (assoc (response request status) :body body)))
 
 ;; =============================================================================
 ;; Validation of Request by Codex Specification

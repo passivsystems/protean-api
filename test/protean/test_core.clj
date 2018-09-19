@@ -103,10 +103,12 @@
                                "Access-Control-Allow-Origin" "*"} :body nil}
         (sim-rsp (req :options "/sample/simple" nil body nil) cdx-1 {}))
 
-(expect {:status 404 :headers {"Protean-error" "Not Found"}}
+(expect {:status 404 :headers {"Protean-error" "Not Found"
+                               "Access-Control-Allow-Origin" "*"}}
         (sim-rsp (req :get "/sample/404" nil body nil) cdx-1 {}))
 
-(expect {:status 405 :headers {"Protean-error" "Method Not Allowed", "Allow" "GET, HEAD, PUT, POST, DELETE, PATCH"}}
+(expect {:status 405 :headers {"Protean-error" "Method Not Allowed", "Allow" "GET, HEAD, PUT, POST, DELETE, PATCH"
+                               "Access-Control-Allow-Origin" "*"}}
         (sim-rsp (req :muppet "/sample/simple" nil body nil) cdx-1 {}))
 
 ;; =============================================================================
@@ -139,7 +141,8 @@
 (expect {:status 200 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
         (sim-rsp (req :get "/sample/simple/1" nil body nil) cdx-2 {}))
 
-(expect {:status 404 :headers {"Protean-error" "Not Found"}}
+(expect {:status 404 :headers {"Protean-error" "Not Found"
+                               "Access-Control-Allow-Origin" "*"}}
         (sim-rsp get-sample-simple cdx-2 {}))
 
 ;; =============================================================================
@@ -176,7 +179,8 @@
 ;; test we get a protean error 500 if response breaks codex contract
 ;; in this case we test against a codex which does not contain a 400 response
 (let [cdx (r/read-codex (dsk/pwd) (file "test/resources/simext-simple.edn"))]
-  (expect {:status 500, :headers {"Protean-error" "Error in sim"}}
+  (expect {:status 500 :headers {"Access-Control-Allow-Origin" "*"
+                                 "Protean-error" "Error in sim"}}
           (sim-rsp get-sample-simple cdx sims)))
 
 

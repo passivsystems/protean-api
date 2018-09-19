@@ -3,7 +3,7 @@
 {
   "gu" {
     "groups${;groupFilter}" {
-      :get #(respond % 200 (matrix-params % ";groupFilter"))
+      :get #(response % 200 (matrix-params % ";groupFilter"))
     }
   }
 }
