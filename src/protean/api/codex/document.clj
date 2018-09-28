@@ -23,20 +23,6 @@
       (u/remove-nils (into {} xs))
       (first xs))))
 
-(defn assoc-tree-item->
-  "Extracts first out-ks in tree and assocs to target as in-k."
-  [tree out-ks in-ks target]
-  (if-let [v (get-in-tree tree out-ks)]
-    (if (empty? v) target (assoc-in target in-ks v))
-    target))
-
-(defn assoc-item->
-  "Extracts out-ks in source and assocs to target as in-ks."
-  [source out-ks in-ks target]
-  (if-let [v (get-in source out-ks)]
-    (if (empty? v) target (assoc-in target in-ks v))
-    target))
-    
 (defn service [tree] (ffirst (filter #(= (type (key %)) String) tree)))
 
 (defn get-path-locations
