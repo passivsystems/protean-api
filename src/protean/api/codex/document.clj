@@ -16,9 +16,12 @@
    codices])
 
 (defn get-in-tree
-  "returns the first result for given sequence of keys from a tree (scope)"
+  "Extracts nested values taking into account tree inheritance."
   [tree ks]
-  (first (remove nil? (map #(get-in % ks) tree))))
+  (let [xs (reverse (remove false? (map #(get-in % ks false) tree)))]
+    (if (some map? xs)
+      (u/remove-nils (into {} xs))
+      (first xs))))
 
 (defn assoc-tree-item->
   "Extracts first out-ks in tree and assocs to target as in-k."
@@ -33,7 +36,7 @@
   (if-let [v (get-in source out-ks)]
     (if (empty? v) target (assoc-in target in-ks v))
     target))
-
+    
 (defn service [tree] (ffirst (filter #(= (type (key %)) String) tree)))
 
 (defn get-path-locations
@@ -81,12 +84,8 @@
        (into {})
        param-fix))
 
-(defn- codex-req-hdrs [tree]
-  ; we don't use get-in-tree as we want to merge definitions in all scopes here
-  (into {} (remove nil? (map #(get-in % [:req :headers]) tree))))
-
 (defn req-ctype [tree]
-  (let [hdrs (codex-req-hdrs tree)
+  (let [hdrs (get-in-tree tree [:req :headers])
         ctype (get hdrs h/ctype)
         body-schema (get-in-tree tree [:req :body-schema])
         body-example (get-in-tree tree [0 :req :body-examples])
@@ -102,7 +101,7 @@
   [tree]
   (let [ctype (req-ctype tree)
         ctype-hdr (if ctype {h/ctype ctype} {})]
-    (param-fix (merge ctype-hdr (codex-req-hdrs tree)))))
+    (param-fix (merge ctype-hdr (get-in-tree tree [:req :headers])))))
 
 (defn req-body [t] (get-in-tree t [:req :body]))
 
