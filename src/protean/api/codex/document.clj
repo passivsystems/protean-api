@@ -28,22 +28,18 @@
 (defn get-path-locations
   "Returns all locations that correspond to a relative path, provided a codex-dir"
   [protean-home path codex-dir]
-  (let [current-dir (dsk/pwd)
-        locations [(str codex-dir "/" path)
-                   (str current-dir "/" path)
-                   (str protean-home "/" path)]]
-    locations))
+  [(str codex-dir "/" path)
+   (str (dsk/pwd) "/" path)
+   (str protean-home "/" path)])
 
 (defn to-path-dir
   "Resolves relative paths to absolute, provided a codex-dir"
   [protean-home path codex-dir]
   (if (dsk/as-relative path)
-    (let [locations (get-path-locations protean-home path codex-dir)
-          abs-path (u/find dsk/exists? locations)]
-      (if abs-path
-        abs-path
-        (throw (java.io.FileNotFoundException.
-          (str "Could not find relative path: '" path "', looked in " locations)))))
+    (let [locs (get-path-locations protean-home path codex-dir)]
+      (or (u/find dsk/exists? locs)
+          (throw (java.io.FileNotFoundException. (str
+            "Could not find relative path: '" path "', looked in: " locs)))))
     path))
 
 (defn to-path
@@ -102,18 +98,15 @@
                     (get-in-tree tree [:rsp rsp-code :headers]))))
 
 (defn rsp-ctype [rsp-code tree]
-  (let [ctype (get-in (codex-rsp-hdrs rsp-code tree) [h/ctype 0])
-        body-schema (get-in-tree tree [:rsp rsp-code :body-schema])
-        body-example (first (get-in-tree tree [:rsp rsp-code :body-examples]))]
-    (cond
-      ctype ctype
-      body-schema (h/mime-schema body-schema)
-      body-example (h/mime body-example))))
+  (or (get-in (codex-rsp-hdrs rsp-code tree) [h/ctype 0])
+      (when-let [bs (get-in-tree tree [:rsp rsp-code :body-schema])]
+        (h/mime-schema bs))
+      (when-let [be (first (get-in-tree tree [:rsp rsp-code :body-examples]))]
+        (h/mime be))))
 
 (defn rsp-hdrs [rsp-code tree]
-  (let [ctype (rsp-ctype rsp-code tree)]
-    (merge (when ctype (param-fix {h/ctype ctype}))
-           (codex-rsp-hdrs rsp-code tree))))
+  (merge (when-let [ct (rsp-ctype rsp-code tree)] (param-fix {h/ctype ct}))
+         (codex-rsp-hdrs rsp-code tree)))
 
 (defn status-matching [tree f-e]
  (->> tree
