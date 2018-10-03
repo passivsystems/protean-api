@@ -18,9 +18,9 @@
 (defn get-in-tree
   "Extracts nested values taking into account tree inheritance."
   [tree ks]
-  (let [xs (reverse (remove false? (map #(get-in % ks false) tree)))]
+  (let [xs (remove nil? (map #(get-in % ks) tree))]
     (if (some map? xs)
-      (u/remove-nils (into {} xs))
+      (u/remove-vals (into {} (reverse xs)) false?)
       (first xs))))
 
 (defn service [tree] (ffirst (filter #(= (type (key %)) String) tree)))
@@ -109,14 +109,11 @@
          (codex-rsp-hdrs rsp-code tree)))
 
 (defn status-matching [tree f-e]
- (->> tree
-      (map (fn [{:keys [rsp]}] (filter #(re-matches f-e (name (key %))) rsp)))
-      (some identity)
+ (->> (get-in-tree tree [:rsp])
+      (filter (fn [[k _]] (re-matches f-e (name k))))
       ; includes default headers, content type + unapply param-fix
-      (map (fn [[k v]] [k (assoc v :headers (u/update-vals (rsp-hdrs k tree) first))]))
-      (into {})
-      seq))
+      (map (fn [[k v]] [k (assoc v :headers (u/update-vals (rsp-hdrs k tree) first))]))))
 
-(defn success-status [tree] (status-matching tree #"[123]\d\d"))
+(defn success-status [tree] (sort-by :status (status-matching tree #"[123]\d\d")))
 
-(defn error-status [tree] (status-matching tree #"[45]\d\d"))
+(defn error-status [tree] (sort-by :status (status-matching tree #"[45]\d\d")))

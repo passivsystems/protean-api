@@ -85,7 +85,7 @@
      :headers (merge {"Content-Type" "text/html"
                       "Access-Control-Allow-Methods" (s/join ", " (distinct m))
                       "Access-Control-Allow-Headers" (s/join ", " (distinct h))})
-      :body nil}))
+     :body nil}))
 
 (defn- execute-fn
   "Prepare bindings for use through out sim execution context.

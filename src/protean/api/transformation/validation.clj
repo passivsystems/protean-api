@@ -30,7 +30,7 @@
                                   {k [v]})))
         select-patterns (select-keys patterns (keys items))
         errors (merge-with invalid select-items select-patterns)]
-    (u/remove-nils errors)))
+    (u/remove-vals errors nil?)))
 
 (defn- validate
   [vtype tree params received-items]
@@ -53,10 +53,10 @@
     (defn fix [v] (when v (s/replace v #"; charset=.*" "")))
     (validate "headers" tree (-> (u/update-keys expected-hdrs s/lower-case)
                                  (update "content-type" #(when % (update % 0 fix)))
-                                 u/remove-nils)
+                                 (u/remove-vals nil?))
                              (-> (u/update-keys headers s/lower-case)
                                  (update "content-type" fix)
-                                 u/remove-nils))))
+                                 (u/remove-vals nil?)))))
 
 (defn validate-query-params
   [{:keys [query-params tree]}]

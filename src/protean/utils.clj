@@ -17,4 +17,4 @@
 
 (defn update-vals [m f & args] (into {} (for [[k v] m] {k (apply f v args)})))
 
-(defn remove-nils [m] (into {} (remove (fn [[k v]] (nil? v)) m)))
+(defn remove-vals [m f & args] (into {} (remove (fn [[_ v]] (apply f v args)) m)))
