@@ -1,4 +1,4 @@
-(defproject protean-api "0.12.2-SNAPSHOT"
+(defproject protean-api "0.13.0"
   :description "Protean API."
   :url "http://github.com/passivsystems/protean-api"
   :license {:name "Apache License v2.0"
@@ -20,8 +20,7 @@
                  [me.rossputin/diskops "0.8.0"]]
   :plugins [[lein-expectations "0.0.8"]
             [lein-codox "0.10.3"]]
-  :codox {:namespaces [protean.api.codex.document
-                       protean.api.protocol.http
+  :codox {:namespaces [protean.api.protocol.http
                        protean.api.generation.generate
                        protean.api.generation.json
                        protean.api.transformation.sim

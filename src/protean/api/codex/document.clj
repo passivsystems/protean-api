@@ -20,7 +20,7 @@
   [tree ks]
   (let [xs (remove nil? (map #(get-in % ks) tree))]
     (if (some map? xs)
-      (u/remove-vals (into {} (reverse xs)) false?)
+      (u/remove-vals (into {} (reverse xs)) #(= % :remove))
       (first xs))))
 
 (defn service [tree] (ffirst (filter #(= (type (key %)) String) tree)))
