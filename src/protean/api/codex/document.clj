@@ -16,45 +16,30 @@
    codices])
 
 (defn get-in-tree
-  "returns the first result for given sequence of keys from a tree (scope)"
+  "Extracts nested values taking into account tree inheritance."
   [tree ks]
-  (first (remove nil? (map #(get-in % ks) tree))))
-
-(defn assoc-tree-item->
-  "Extracts first out-ks in tree and assocs to target as in-k."
-  [tree out-ks in-ks target]
-  (if-let [v (get-in-tree tree out-ks)]
-    (if (empty? v) target (assoc-in target in-ks v))
-    target))
-
-(defn assoc-item->
-  "Extracts out-ks in source and assocs to target as in-ks."
-  [source out-ks in-ks target]
-  (if-let [v (get-in source out-ks)]
-    (if (empty? v) target (assoc-in target in-ks v))
-    target))
+  (let [xs (remove nil? (map #(get-in % ks) tree))]
+    (if (some map? xs)
+      (u/remove-vals (into {} (reverse xs)) #(= % :remove))
+      (first xs))))
 
 (defn service [tree] (ffirst (filter #(= (type (key %)) String) tree)))
 
 (defn get-path-locations
   "Returns all locations that correspond to a relative path, provided a codex-dir"
   [protean-home path codex-dir]
-  (let [current-dir (dsk/pwd)
-        locations [(str codex-dir "/" path)
-                   (str current-dir "/" path)
-                   (str protean-home "/" path)]]
-    locations))
+  [(str codex-dir "/" path)
+   (str (dsk/pwd) "/" path)
+   (str protean-home "/" path)])
 
 (defn to-path-dir
   "Resolves relative paths to absolute, provided a codex-dir"
   [protean-home path codex-dir]
   (if (dsk/as-relative path)
-    (let [locations (get-path-locations protean-home path codex-dir)
-          abs-path (u/find dsk/exists? locations)]
-      (if abs-path
-        abs-path
-        (throw (java.io.FileNotFoundException.
-          (str "Could not find relative path: '" path "', looked in " locations)))))
+    (let [locs (get-path-locations protean-home path codex-dir)]
+      (or (u/find dsk/exists? locs)
+          (throw (java.io.FileNotFoundException. (str
+            "Could not find relative path: '" path "', looked in: " locs)))))
     path))
 
 (defn to-path
@@ -81,12 +66,8 @@
        (into {})
        param-fix))
 
-(defn- codex-req-hdrs [tree]
-  ; we don't use get-in-tree as we want to merge definitions in all scopes here
-  (into {} (remove nil? (map #(get-in % [:req :headers]) tree))))
-
 (defn req-ctype [tree]
-  (let [hdrs (codex-req-hdrs tree)
+  (let [hdrs (get-in-tree tree [:req :headers])
         ctype (get hdrs h/ctype)
         body-schema (get-in-tree tree [:req :body-schema])
         body-example (get-in-tree tree [0 :req :body-examples])
@@ -102,7 +83,7 @@
   [tree]
   (let [ctype (req-ctype tree)
         ctype-hdr (if ctype {h/ctype ctype} {})]
-    (param-fix (merge ctype-hdr (codex-req-hdrs tree)))))
+    (param-fix (merge ctype-hdr (get-in-tree tree [:req :headers])))))
 
 (defn req-body [t] (get-in-tree t [:req :body]))
 
@@ -117,28 +98,22 @@
                     (get-in-tree tree [:rsp rsp-code :headers]))))
 
 (defn rsp-ctype [rsp-code tree]
-  (let [ctype (get-in (codex-rsp-hdrs rsp-code tree) [h/ctype 0])
-        body-schema (get-in-tree tree [:rsp rsp-code :body-schema])
-        body-example (first (get-in-tree tree [:rsp rsp-code :body-examples]))]
-    (cond
-      ctype ctype
-      body-schema (h/mime-schema body-schema)
-      body-example (h/mime body-example))))
+  (or (get-in (codex-rsp-hdrs rsp-code tree) [h/ctype 0])
+      (when-let [bs (get-in-tree tree [:rsp rsp-code :body-schema])]
+        (h/mime-schema bs))
+      (when-let [be (first (get-in-tree tree [:rsp rsp-code :body-examples]))]
+        (h/mime be))))
 
 (defn rsp-hdrs [rsp-code tree]
-  (let [ctype (rsp-ctype rsp-code tree)]
-    (merge (when ctype (param-fix {h/ctype ctype}))
-           (codex-rsp-hdrs rsp-code tree))))
+  (merge (when-let [ct (rsp-ctype rsp-code tree)] (param-fix {h/ctype ct}))
+         (codex-rsp-hdrs rsp-code tree)))
 
 (defn status-matching [tree f-e]
- (->> tree
-      (map (fn [{:keys [rsp]}] (filter #(re-matches f-e (name (key %))) rsp)))
-      (some identity)
+ (->> (get-in-tree tree [:rsp])
+      (filter (fn [[k _]] (re-matches f-e (name k))))
       ; includes default headers, content type + unapply param-fix
-      (map (fn [[k v]] [k (assoc v :headers (u/update-vals (rsp-hdrs k tree) first))]))
-      (into {})
-      seq))
+      (map (fn [[k v]] [k (assoc v :headers (u/update-vals (rsp-hdrs k tree) first))]))))
 
-(defn success-status [tree] (status-matching tree #"[123]\d\d"))
+(defn success-status [tree] (sort-by :status (status-matching tree #"[123]\d\d")))
 
-(defn error-status [tree] (status-matching tree #"[45]\d\d"))
+(defn error-status [tree] (sort-by :status (status-matching tree #"[45]\d\d")))

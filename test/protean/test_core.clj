@@ -5,12 +5,24 @@
             [protean.api.protocol.http :as h]
             [protean.api.codex.reader :as r]
             [expectations :refer :all]
-            [taoensso.timbre :as l]
             [me.rossputin.diskops :as dsk]))
 
-(defn- sim-rsp [req cdx sim] (core/sim-rsp (dsk/pwd) req cdx sim))
-
-(l/set-level! :info)
+(defn- sim-rsp
+  [req cdx sim]
+  (println "\n--------------------------test-sim-rsp--------------------------")
+  (println req)
+  (let [{:keys [request-method uri query-params form-params]} req
+        r (core/sim-rsp (dsk/pwd) req cdx (list sim))]
+    (println "request with"
+             "\n    method:" request-method
+             "\n    uri:" uri
+             "\n    query-params:" query-params
+             "\n    form-params:" form-params
+             "\nresponded with"
+             "\n    status:" (:status r)
+             "\n    headers:" (:headers r)
+             "\n    body:" (:body r))
+    r))
 
 (def json-hdrs {"Access-Control-Allow-Origin" "*"
                 "Content-Type" "application/json; charset=utf-8"})
@@ -59,7 +71,10 @@
       :put [{:rsp {:204 {}}}]
       :post [{:rsp {:201 {:headers {"Location" "over here"}}}}]
       :delete [{:rsp {:204 {}}}]
-      :patch [{:rsp {:204 {}}}]
+      :patch [{
+        :req {:headers {"Content-Type" ["application/json-patch+json" :required]}}
+        :rsp {:204 {}}
+      }]
     }
   }
 })
@@ -80,7 +95,7 @@
         (sim-rsp (req :delete "/sample/simple" nil body nil) cdx-1 {}))
 
 (expect {:status 204 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
-        (sim-rsp (req :patch "/sample/simple" nil body nil) cdx-1 {}))
+        (sim-rsp (req :patch "/sample/simple" {"Content-Type" "application/json-patch+json"} body nil) cdx-1 {}))
 
 (expect {:status 200 :headers {"Content-Type" "text/html"
                                "Access-Control-Allow-Methods" "GET, HEAD, PUT, POST, DELETE, PATCH"
@@ -88,10 +103,12 @@
                                "Access-Control-Allow-Origin" "*"} :body nil}
         (sim-rsp (req :options "/sample/simple" nil body nil) cdx-1 {}))
 
-(expect {:status 404 :headers {"Protean-error" "Not Found"}}
+(expect {:status 404 :headers {"Protean-error" "Not Found"
+                               "Access-Control-Allow-Origin" "*"}}
         (sim-rsp (req :get "/sample/404" nil body nil) cdx-1 {}))
 
-(expect {:status 405 :headers {"Protean-error" "Method Not Allowed", "Allow" "GET, HEAD, PUT, POST, DELETE, PATCH"}}
+(expect {:status 405 :headers {"Protean-error" "Method Not Allowed", "Allow" "GET, HEAD, PUT, POST, DELETE, PATCH"
+                               "Access-Control-Allow-Origin" "*"}}
         (sim-rsp (req :muppet "/sample/simple" nil body nil) cdx-1 {}))
 
 ;; =============================================================================
@@ -124,7 +141,8 @@
 (expect {:status 200 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
         (sim-rsp (req :get "/sample/simple/1" nil body nil) cdx-2 {}))
 
-(expect {:status 404 :headers {"Protean-error" "Not Found"}}
+(expect {:status 404 :headers {"Protean-error" "Not Found"
+                               "Access-Control-Allow-Origin" "*"}}
         (sim-rsp get-sample-simple cdx-2 {}))
 
 ;; =============================================================================
@@ -161,7 +179,8 @@
 ;; test we get a protean error 500 if response breaks codex contract
 ;; in this case we test against a codex which does not contain a 400 response
 (let [cdx (r/read-codex (dsk/pwd) (file "test/resources/simext-simple.edn"))]
-  (expect {:status 500, :headers {"Protean-error" "Error in sim"}}
+  (expect {:status 500 :headers {"Access-Control-Allow-Origin" "*"
+                                 "Protean-error" "Error in sim"}}
           (sim-rsp get-sample-simple cdx sims)))
 
 
@@ -344,8 +363,8 @@
   \"headerPlaceholder2\": \"yyy\",
   \"queryPlaceholder\": \"sweet\",
   \"matrixPlaceholder\": \"juice\",
-  \"formPlaceholder\": \"me\"
+  \"formPlaceholder\": \"candy\"
 }\n")
 
 (expect {:status 200 :headers (merge json-hdrs {"location" "outputs/123/xxx"}) :body output-form}
-        (sim-rsp (req :post "/sample/inputs;m=juice/123/form?q=sweet" {"h" "Bearer xxx yyy"} nil {"f" "me"}) cdx-7 nil))
+        (sim-rsp (req :post "/sample/inputs;m=juice/123/form?q=sweet" {"h" "Bearer xxx yyy"} nil {"f" "candy"}) cdx-7 nil))

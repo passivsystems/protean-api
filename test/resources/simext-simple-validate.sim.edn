@@ -6,10 +6,10 @@
   :sim-cfg {:validate? false}
   "sample" {
     "simple" {
-      :get #(if-let [errs (validate %)] (respond % 400 errs) (respond % 200))
+      :get #(if-let [errs (validate %)] (response % 400 errs) (response % 200))
     }
     "bespoke" {
-      :get #(if (:query-errors (validate %)) (respond % 403) (respond % 200))
+      :get #(if (:query-errors (validate %)) (response % 403) (response % 200))
     }
     "override" {
       :sim-cfg {
@@ -17,18 +17,18 @@
         :validate-rule (fn [request rule]
                          (let [errs (validate request)]
                            (cond
-                             (:query-errors errs) (respond request 403)
+                             (:query-errors errs) (response request 403)
                              rule                 (apply rule [request])
-                             :else                (respond request 200))))
+                             :else                (response request 200))))
       }
-      :get #(respond % 200)
+      :get #(response % 200)
     }
     "auth" {
       :get #(let [errs (validate %)]
               (cond
-                (s/includes? (str (:header-errors errs)) "expected headers: authorization") (respond % 401)
-                (:header-errors errs)                                                       (respond % 403)
-                :else                                                                       (respond % 200)))
+                (s/includes? (str (:header-errors errs)) "expected headers: authorization") (response % 401)
+                (:header-errors errs)                                                       (response % 403)
+                :else                                                                       (response % 200)))
     }
   }
 }

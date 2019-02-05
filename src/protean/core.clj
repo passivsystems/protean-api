@@ -61,16 +61,21 @@
                :path-params path-params
                :matrix-params matrix-params)))
 
-(defn- protean-error-400 [msg] {:status 400 :headers {"Protean-error" "Bad Request" "Protean-error-messages" msg}})
+(defn- protean-error-400 [msg]
+  {:status 400
+   :headers {"Protean-error" "Bad Request" "Protean-error-messages" msg}})
 
-(defn- protean-error-404 [] {:status 404 :headers {"Protean-error" "Not Found"}})
+(defn- protean-error-404 []
+  {:status 404 :headers {"Protean-error" "Not Found"}})
 
 (defn- protean-error-405 [allowed-methods]
   {:status 405
    :headers {"Protean-error" "Method Not Allowed"
              "Allow" (s/join ", " (map #(s/upper-case (name %)) allowed-methods))}})
 
-(defn- protean-error-500 [] {:status 500 :headers {"Protean-error" "Error in sim"}})
+(defn- protean-error-500 [ex]
+  (u/print-error ex)
+  {:status 500 :headers {"Protean-error" "Error in sim"}})
 
 (defn- http-options [paths svc endpoint {:keys [cors]}]
   (let [e (get-in paths [svc endpoint])
@@ -78,11 +83,9 @@
         h (conj (keys (into {} (for [[_ v] e] (d/req-hdrs v)))) "Content-Type")]
     {:status 200
      :headers (merge {"Content-Type" "text/html"
-                      "Access-Control-Allow-Methods" (s/join ", " m)
-                      "Access-Control-Allow-Headers" (s/join ", " h)}
-                     (when (not (false? cors))
-                       {"Access-Control-Allow-Origin" "*"}))
-      :body nil}))
+                      "Access-Control-Allow-Methods" (s/join ", " (distinct m))
+                      "Access-Control-Allow-Headers" (s/join ", " (distinct h))})
+     :body nil}))
 
 (defn- execute-fn
   "Prepare bindings for use through out sim execution context.
@@ -98,7 +101,7 @@
           errors         (protean-error-400 (s/join ", " (vals errors)))
           rule           (apply rule [aug-req])
           :else          (first (sim/success-responses aug-req)))
-        (catch Exception e (u/print-error e) (protean-error-500))))))
+        (catch Exception e (protean-error-500 e))))))
 
 (defn- swap-placeholders
   [rsp tree aug-req]
@@ -133,33 +136,28 @@
         req-ep-raw (s/split uri (re-pattern (str "/" (name svc) "/")))
         req-endpoint (if (> (count req-ep-raw) 1) (second req-ep-raw) "/")
         endpoint (to-endpoint req-endpoint paths svc)
-        sim-cfg (merge (:sim-cfg sims)
-                       (get-in sims [svc :sim-cfg])
-                       (get-in sims [svc endpoint :sim-cfg])
-                       (get-in sims [svc endpoint request-method :sim-cfg]))
-        tree (get-in paths [svc endpoint request-method])]
-    (if (not tree)
-      (if (= request-method :options)
-        (http-options paths svc endpoint sim-cfg)
-        (do (log/warn "warning - no endpoint found for" [uri request-method])
-            (if-let [supported-methods (keys (get-in paths [svc endpoint]))]
-              (protean-error-405 supported-methods)
-              (protean-error-404))))
-      (let [rules (get-in sims [svc endpoint request-method])
+        sim (first (filter #(get-in % [svc endpoint request-method]) sims))
+        sim-cfg (merge (:sim-cfg sim)
+                       (get-in sim [svc :sim-cfg])
+                       (get-in sim [svc endpoint :sim-cfg])
+                       (get-in sim [svc endpoint request-method :sim-cfg]))]
+    (if-let [tree (get-in paths [svc endpoint request-method])]
+      (let [rules (get-in sim [svc endpoint request-method])
             aug-req (sim-req req protean-home tree svc req-endpoint endpoint)
-            rsp (when tree ((execute-fn aug-req sim-cfg) rules))]
-        (log/info "executed" (if rules "sim extension rules" "default rules")
-                  "for uri:" uri "body:" (:body aug-req)
-                  "(svc:" svc "endpoint:" endpoint "method:" request-method ")")
-        (if-let [r (and (map? rsp) (int? (:status rsp))
-                        (-> rsp
-                            (swap-placeholders tree aug-req)
-                            (transform-cors sim-cfg)
-                            (serialise tree)))]
-          (do (log/info "responding with status:" (:status r) "headers:" (:headers r) "body:" (:body r))
-              r)
-          (do (u/print-error (IllegalArgumentException. (s/join " " [
-                "Response:" (or rsp "'nil'") "does not match structure"
-                "{:status Int :headers Vector :body String}."
-                "Does your response comply with the codex ?"])))
-              (protean-error-500)))))))
+            fn-rsp ((execute-fn aug-req sim-cfg) rules)
+            rsp (if (and (map? fn-rsp) (int? (:status fn-rsp)))
+                  fn-rsp
+                  (protean-error-500 (IllegalArgumentException. (str
+                    "Response: " fn-rsp " does not match structure {:status Int}."))))]
+        (-> rsp
+            (swap-placeholders tree aug-req)
+            (transform-cors sim-cfg)
+            (serialise tree)))
+      (let [rsp (if (= request-method :options)
+                  (http-options paths svc endpoint sim-cfg)
+                  (if-let [supported-methods (keys (get-in paths [svc endpoint]))]
+                    (do (log/warn "method not supported for" [uri request-method])
+                        (protean-error-405 supported-methods))
+                    (do (log/warn "no endpoint found for" [uri request-method])
+                        (protean-error-404))))]
+        (transform-cors rsp sim-cfg)))))

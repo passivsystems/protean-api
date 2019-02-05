@@ -15,20 +15,22 @@
             [protean.api.transformation.xmlvalidation :as xv])
   (:import java.io.ByteArrayInputStream))
 
+(defn escape-regex [v] (s/replace v #"[()&^%#!?*.+]"  #(str "\\" %)))
+
 (defn- invalid-values
   [params tree items]
   (let [invalid (fn [value pattern]
                   (when (and (not (s/blank? (str pattern)))
                              (empty? (filter #(re-matches pattern %) value)))
                     (str " value: '" (s/join "," value) "' does not match: " pattern)))
-        patterns (into {} (for [[k v] params] {k (ph/regex-pattern tree (first v))}))
+        patterns (into {} (for [[k v] params] {k (ph/regex-pattern tree (escape-regex (first v)))}))
         select-items (into {} (for [[k v] (select-keys items (keys patterns))]
                                 (if (.contains (get params k) :multiple)
                                   {k (s/split v #",")}
                                   {k [v]})))
         select-patterns (select-keys patterns (keys items))
         errors (merge-with invalid select-items select-patterns)]
-    (u/remove-nils errors)))
+    (u/remove-vals errors nil?)))
 
 (defn- validate
   [vtype tree params received-items]
@@ -51,10 +53,10 @@
     (defn fix [v] (when v (s/replace v #"; charset=.*" "")))
     (validate "headers" tree (-> (u/update-keys expected-hdrs s/lower-case)
                                  (update "content-type" #(when % (update % 0 fix)))
-                                 u/remove-nils)
+                                 (u/remove-vals nil?))
                              (-> (u/update-keys headers s/lower-case)
                                  (update "content-type" fix)
-                                 u/remove-nils))))
+                                 (u/remove-vals nil?)))))
 
 (defn validate-query-params
   [{:keys [query-params tree]}]
