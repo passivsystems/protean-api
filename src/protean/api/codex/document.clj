@@ -109,11 +109,11 @@
          (codex-rsp-hdrs rsp-code tree)))
 
 (defn status-matching [tree f-e]
- (->> (get-in-tree tree [:rsp])
-      (filter (fn [[k _]] (re-matches f-e (name k))))
-      ; includes default headers, content type + unapply param-fix
-      (map (fn [[k v]] [k (assoc v :headers (u/update-vals (rsp-hdrs k tree) first))]))))
+  (->> (get-in-tree tree [:rsp])
+       (filter (fn [[k _]] (re-matches f-e (name k))))
+       ; includes default headers, content type + unapply param-fix
+       (map (fn [[k v]] [k (assoc v :headers (u/update-vals (rsp-hdrs k tree) first))]))))
 
-(defn success-status [tree] (sort-by :status (status-matching tree #"[123]\d\d")))
+(defn success-status [tree] (sort (status-matching tree #"[123]\d\d")))
 
-(defn error-status [tree] (sort-by :status (status-matching tree #"[45]\d\d")))
+(defn error-status [tree] (sort (status-matching tree #"[45]\d\d")))

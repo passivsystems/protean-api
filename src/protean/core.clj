@@ -24,26 +24,11 @@
       (or (some #{req-endpoint} filtered-ep) req-endpoint nil)
       (u/find #(parse-endpoint req-endpoint %) endpoints))))
 
-(defn- build-rsp
-  [protean-home tree [code {:keys [body-examples headers]}]]
-  (let [status-code (read-string (name code)) ; to int
-        body-url (first body-examples)
-        hdrs-with-ctype (if (and body-url (not (get-in headers [http/ctype])))
-                          (assoc headers http/ctype (http/mime body-url))
-                          headers)
-        raw-body (when body-url (slurp (d/to-path protean-home body-url tree)))
-        body (if (http/txt? (get hdrs-with-ctype http/ctype))
-               (s/trim-newline raw-body)
-               raw-body)]
-    {:status status-code :headers hdrs-with-ctype :body body}))
-
 (defn- sim-req
   "Prepare request for sim binding - augment with necessary information.
    Handles converting body from input stream to content for multi access."
   [req protean-home tree svc req-endpoint cod-endpoint]
-  (let [success-rsp (map #(build-rsp protean-home tree %) (d/success-status tree))
-        error-rsp (map #(build-rsp protean-home tree %) (d/error-status tree))
-        ph-ks (map second (re-seq ph/ph cod-endpoint))
+  (let [ph-ks (map second (re-seq ph/ph cod-endpoint))
         ph-vs (drop 1 (parse-endpoint req-endpoint cod-endpoint))
         path-params (into {} (map vector ph-ks ph-vs))
         matrix-params (->> path-params
@@ -57,7 +42,6 @@
                :endpoint cod-endpoint
                :svc svc
                :body (or (dk/slurp-pun (:body req)) "")
-               :response {:success success-rsp :error error-rsp}
                :path-params path-params
                :matrix-params matrix-params)))
 
@@ -100,7 +84,7 @@
           validate-rule? (apply validate-rule [aug-req rule])
           errors         (protean-error-400 (s/join ", " (vals errors)))
           rule           (apply rule [aug-req])
-          :else          (first (sim/success-responses aug-req)))
+          :else          (sim/response aug-req (first (sim/success-codes aug-req))))
         (catch Exception e (protean-error-500 e))))))
 
 (defn- swap-placeholders
@@ -116,16 +100,19 @@
     (merge-with merge {:headers {"Access-Control-Allow-Origin" "*"}} rsp)))
 
 (defn- serialise
-  [{:keys [status body] :as rsp} tree]
-  (let [ctype (str (or (get-in rsp [:headers "Content-Type"])
-                       (d/rsp-ctype (keyword (str status)) tree)))]
+  [{:keys [status body] :as raw-rsp} tree]
+  (let [ctype (str (or (get-in raw-rsp [:headers "Content-Type"])
+                       (d/rsp-ctype (keyword (str status)) tree)))
+        rsp (if (or (empty? ctype) (nil? body))
+              raw-rsp
+              (assoc-in raw-rsp [:headers "Content-Type"] ctype))]
     (cond
       (nil? body)                            rsp
       (string? body)                         rsp ;; Assume already coerced
       (s/starts-with? ctype http/jsn-simple) (assoc rsp :body (coerce/jsn body))
       (s/starts-with? ctype http/xml)        (assoc rsp :body (coerce/xml body))
+      (s/starts-with? ctype http/txt)        (assoc rsp :body (s/trim-newline body))
       :else                                  rsp)))
-
 
 ;; =============================================================================
 ;; Sim Execution
