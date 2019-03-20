@@ -9,19 +9,18 @@
 
 (defn- sim-rsp
   [req cdx sim]
-  (println "\n--------------------------test-sim-rsp--------------------------")
-  (println req)
+  (println "\nTest sim-rsp" (:request-method req) (str (:uri req) (:query-string req)))
   (let [{:keys [request-method uri query-params form-params]} req
         r (core/sim-rsp (dsk/pwd) req cdx (list sim))]
-    (println "request with"
-             "\n    method:" request-method
-             "\n    uri:" uri
-             "\n    query-params:" query-params
-             "\n    form-params:" form-params
-             "\nresponded with"
-             "\n    status:" (:status r)
-             "\n    headers:" (:headers r)
-             "\n    body:" (:body r))
+    (println "  request with"
+             "  \n    method:" request-method
+             "  \n    uri:" uri
+             "  \n    query-params:" query-params
+             "  \n    form-params:" form-params
+             "  \nresponded with"
+             "  \n    status:" (:status r)
+             "  \n    headers:" (:headers r)
+             "  \n    body:" (:body r))
     r))
 
 (def json-hdrs {"Access-Control-Allow-Origin" "*"
@@ -49,7 +48,8 @@
       :character-encoding nil
       :uri uri
       :server-name "localhost"
-      :query-string nil
+      :query-string (when (not-empty qps)
+                      (str "&" (s/join "?" (for [[k v] qps] (str k "=" v)))))
       :body b
       :scheme :http
       :request-method m
