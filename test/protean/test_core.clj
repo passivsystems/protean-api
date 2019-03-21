@@ -2,26 +2,21 @@
   (:require [clojure.java.io :refer [file]]
             [clojure.string :as s]
             [protean.core :as core]
-            [protean.api.protocol.http :as h]
             [protean.api.codex.reader :as r]
+            [protean.api.protocol.http :as h]
+            [protean.api.transformation.paths :as p]
             [expectations :refer :all]
             [me.rossputin.diskops :as dsk]))
 
 (defn- sim-rsp
   [req cdx sim]
-  (println "\nTest sim-rsp" (:request-method req) (str (:uri req) (:query-string req)))
-  (let [{:keys [request-method uri query-params form-params]} req
-        r (core/sim-rsp (dsk/pwd) req cdx (list sim))]
-    (println "  request with"
-             "  \n    method:" request-method
-             "  \n    uri:" uri
-             "  \n    query-params:" query-params
-             "  \n    form-params:" form-params
-             "  \nresponded with"
-             "  \n    status:" (:status r)
-             "  \n    headers:" (:headers r)
-             "  \n    body:" (:body r))
-    r))
+  (let [{:keys [request-method uri query-string form-params]} req
+        _ (println "\nTest sim-rsp" request-method (str uri query-string) "responded with")
+        rsp (core/sim-rsp (dsk/pwd) req (p/paths [cdx]) (list sim))]
+    (println "  status:" (:status rsp)
+             "\n  headers:" (:headers rsp)
+             "\n  body:" (:body rsp))
+    rsp))
 
 (def json-hdrs {"Access-Control-Allow-Origin" "*"
                 "Content-Type" "application/json; charset=utf-8"})
@@ -66,15 +61,15 @@
 (def cdx-1 {
   "sample" {
     "simple" {
-      :get [{:rsp {:200 {}}}]
-      :head [{:rsp {:200 {:headers {"token" "aGVsbG8gc2FpbG9y"}}}}]
-      :put [{:rsp {:204 {}}}]
-      :post [{:rsp {:201 {:headers {"Location" "over here"}}}}]
-      :delete [{:rsp {:204 {}}}]
-      :patch [{
+      :get {:rsp {:200 {}}}
+      :head {:rsp {:200 {:headers {"token" "aGVsbG8gc2FpbG9y"}}}}
+      :put {:rsp {:204 {}}}
+      :post {:rsp {:201 {:headers {"Location" "over here"}}}}
+      :delete {:rsp {:204 {}}}
+      :patch {
         :req {:headers {"Content-Type" ["application/json-patch+json" :required]}}
         :rsp {:204 {}}
-      }]
+      }
     }
   }
 })
@@ -118,22 +113,8 @@
 (def cdx-2 {
   "sample" {
     "simple/${thingId}" {
-      :get [
-        {:rsp {:200 {}}}
-        {:get {:rsp {:200 {}}}}
-        {
-          "simple/${thingId}" {:get {:rsp {:200 {}}}},
-          :vars {"thingId" {:doc "Id of thing", :type :Int}}
-        }
-        {:rsp {:200 {:doc "OK"}}}
-        {:get {:rsp {:200 {:doc "OK"}}},
-         :default-content-type "application/json; charset=utf-8",
-         "sample" {
-           "simple/${thingId}" {:get {:rsp {:200 {}}}},
-           :vars {"thingId" {:doc "Id of thing", :type :Int}}
-         }
-        }
-      ]
+      :vars {"thingId" {:doc "Id of thing", :type :Int}}
+      :get {:rsp {:200 {}}}
     }
   }
 })
@@ -152,13 +133,13 @@
 (def cdx-3 {
   "sample" {
     "simple" {
-      :get [{
+      :get {
         :validate? true
         :types {:String "[a-zA-Z0-9]+"}
         :vars {"q1" {:type :String :doc "A test request param"}}
         :req {:query-params {"q1" ["${q1}" :required]}}
         :rsp {:200 {}}
-      }]
+      }
     }
   }
 })
@@ -191,7 +172,7 @@
 (def cdx-5 {
   "sample" {
     "simple" {
-      :get [{
+      :get {
         :types {:String "[a-zA-Z0-9]+"}
         :vars {"q1" {:type :String}
                "q2" {:type :Int}
@@ -200,31 +181,31 @@
                              "q2" ["${q2}" :optional]
                              "q3" ["${q3}" :optional :multiple]}}
         :rsp {:200 {} :400 {:headers {"Content-Type" "application/json; charset=utf-8"}}}
-      }]
+      }
     }
     "bespoke" {
-      :get [{
+      :get {
         :types {:String "[a-zA-Z0-9]+"}
         :vars {"q1" {:type :String :doc "A test request param"}}
         :req {:query-params {"q1" ["${q1}" :required]}}
         :rsp {:200 {} :403 {}}
-      }]
+      }
     }
     "override" {
-      :get [{
+      :get {
         :types {:String "[a-zA-Z0-9]+"}
         :vars {"q1" {:type :String :doc "A test request param"}}
         :req {:query-params {"q1" ["${q1}" :required]}}
         :rsp {:200 {} :403 {}}
-      }]
+      }
     }
     "auth" {
-      :get [{
+      :get {
         :types {:Token "[0-9a-zA-Z0-9]{15}"}
         :vars {"bearerToken" {:type :Token :examples ["08d2301e-ee81-4654-b448-0636f454612a"]}}
         :req {:headers {"Authorization" ["Bearer ${bearerToken}" :required]}}
         :rsp {:200 {} :401 {} :403 {}}
-      }]
+      }
     }
   }
 })
@@ -284,7 +265,7 @@
 (def cdx-6 {
   "gu" {
     "groups${;groupFilter}" {
-      :get [{
+      :get {
         :types {
           :String "[a-zA-Z0-9]+"}
         :vars {
@@ -300,7 +281,7 @@
           :200 {:headers {"Content-Type" "application/json; charset=utf-8"}},
           :400 {:headers {"Content-Type" "application/json; charset=utf-8"}}
         }
-      }]
+      }
     }
   }
 })
@@ -321,7 +302,7 @@
 (def cdx-7 {
   "sample" {
     "inputs${;inputFilter}/${pathPlaceholder}/form" {
-      :post [{
+      :post {
         :types {:Token "[a-z]{3}" :String "[a-zA-Z0-9]+"}
         :vars {"pathPlaceholder" {:type :Long}
                "headerPlaceholder1" {:type :Token}
@@ -335,10 +316,10 @@
               :form-params {"f" ["${formPlaceholder}" :required]}}
         :rsp {:200 {:body-examples ["test/resources/responses/output-form.json"]
                     :headers {"location" "outputs/${pathPlaceholder}/${headerPlaceholder1}"}}}
-      }]
+      }
     }
     "inputs${;inputFilter}/${pathPlaceholder}/body" {
-      :post [{
+      :post {
         :types {:Token "[a-z]{3}" :String "[a-zA-Z0-9]+"}
         :vars {"pathPlaceholder" {:type :Long}
                "headerPlaceholder1" {:type :Token}
@@ -352,7 +333,7 @@
               :body-examples ["test/resources/requests/input-body.json"]}
         :rsp {:200 {:body-examples ["test/resources/responses/output-body.json"]
                     :headers {"location" "outputs/${pathPlaceholder}/${headerPlaceholder1}"}}}
-      }]
+      }
     }
   }
 })
