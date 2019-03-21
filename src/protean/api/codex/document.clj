@@ -8,12 +8,12 @@
 (defn to-seq
   "creates a sequence (for now aka 'tree' - needs renaming) that can be
    traversed to resolve required references in scope"
-  [codices svc path method]
-  [(get-in codices [svc path method])
-   (get-in codices [svc path])
-   (get-in codices [svc])
-   (get-in codices [method])
-   codices])
+  [codex svc path method]
+  [(get-in codex [svc path method])
+   (get-in codex [svc path])
+   (get-in codex [svc])
+   (get-in codex [method])
+   codex])
 
 (defn get-in-tree
   "Extracts nested values taking into account tree inheritance."
