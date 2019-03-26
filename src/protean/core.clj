@@ -108,10 +108,10 @@
               (assoc-in raw-rsp [:headers "Content-Type"] ctype))]
     (cond
       (nil? body)                            rsp
+      (s/starts-with? ctype http/txt)        (assoc rsp :body (s/trim-newline body))
       (string? body)                         rsp ;; Assume already coerced
       (s/starts-with? ctype http/jsn-simple) (assoc rsp :body (coerce/jsn body))
       (s/starts-with? ctype http/xml)        (assoc rsp :body (coerce/xml body))
-      (s/starts-with? ctype http/txt)        (assoc rsp :body (s/trim-newline body))
       :else                                  rsp)))
 
 ;; =============================================================================
