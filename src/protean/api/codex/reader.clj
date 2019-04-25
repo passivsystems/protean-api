@@ -16,7 +16,7 @@
   (defn- merge-includes [[k v]]
     (cond
       (= :includes k) (reduce merge-with merge (map (partial read-codex-part protean-home codex-dir) v))
-      (map? v)        {k (apply merge-with merge (map merge-includes v))}
+      (map? v)        {k (into {} (apply merge-with merge (map merge-includes v)))}
       :else           {k v}))
   (let [afile (if (string? file) (d/to-path-dir protean-home file codex-dir) file)
         file-content (slurp afile)
