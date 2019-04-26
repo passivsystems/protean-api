@@ -9,9 +9,12 @@
             [me.rossputin.diskops :as dsk]))
 
 (defn- sim-rsp
-  [req cdx sim]
+  [req raw-cdx sim]
   (let [{:keys [request-method uri query-string form-params]} req
         _ (println "\nTest sim-rsp" request-method (str uri query-string) "responded with")
+        f (file "/tmp" "protean-api-test_core.cod.edn")
+        _ (spit f (str raw-cdx))
+        cdx (r/read-codex (dsk/pwd) f)
         rsp (core/sim-rsp (dsk/pwd) req (p/paths [cdx]) (list sim))]
     (println "  status:" (:status rsp)
              "\n  headers:" (:headers rsp)
@@ -59,6 +62,7 @@
 ;; =============================================================================
 
 (def cdx-1 {
+  :includes ["test/resources/defaults.edn"]
   "sample" {
     "simple" {
       :get {:rsp {:200 {}}}
@@ -111,6 +115,7 @@
 ;; =============================================================================
 
 (def cdx-2 {
+  :includes ["test/resources/defaults.edn"]
   "sample" {
     "simple/${thingId}" {
       :vars {"thingId" {:doc "Id of thing", :type :Int}}
@@ -131,11 +136,11 @@
 ;; =============================================================================
 
 (def cdx-3 {
+  :includes ["test/resources/defaults.edn"]
   "sample" {
     "simple" {
       :get {
         :validate? true
-        :types {:String "[a-zA-Z0-9]+"}
         :vars {"q1" {:type :String :doc "A test request param"}}
         :req {:query-params {"q1" ["${q1}" :required]}}
         :rsp {:200 {}}
@@ -154,15 +159,19 @@
 ;; Sim extension
 ;; =============================================================================
 
+(def cdx-4 {
+  "sample" {
+    "simple" {:get {:rsp {:200 {} :501 {}}}}}
+})
+
 ;; defines a 400 response
 (def sims (clojure.main/load-script "test/resources/simext-simple.sim.edn"))
 
 ;; test we get a protean error 500 if response breaks codex contract
 ;; in this case we test against a codex which does not contain a 400 response
-(let [cdx (r/read-codex (dsk/pwd) (file "test/resources/simext-simple.edn"))]
-  (expect {:status 500 :headers {"Access-Control-Allow-Origin" "*"
-                                 "Protean-error" "Error in sim"}}
-          (sim-rsp get-sample-simple cdx sims)))
+(expect {:status 500 :headers {"Access-Control-Allow-Origin" "*"
+                               "Protean-error" "Error in sim"}}
+        (sim-rsp get-sample-simple cdx-4 sims))
 
 
 ;; validating sim extension
@@ -170,10 +179,10 @@
 (def sim-2 (clojure.main/load-script "test/resources/simext-simple-validate.sim.edn"))
 
 (def cdx-5 {
+  :includes ["test/resources/defaults.edn"]
   "sample" {
     "simple" {
       :get {
-        :types {:String "[a-zA-Z0-9]+"}
         :vars {"q1" {:type :String}
                "q2" {:type :Int}
                "q3" {:type :Int}}
@@ -185,7 +194,6 @@
     }
     "bespoke" {
       :get {
-        :types {:String "[a-zA-Z0-9]+"}
         :vars {"q1" {:type :String :doc "A test request param"}}
         :req {:query-params {"q1" ["${q1}" :required]}}
         :rsp {:200 {} :403 {}}
@@ -193,7 +201,6 @@
     }
     "override" {
       :get {
-        :types {:String "[a-zA-Z0-9]+"}
         :vars {"q1" {:type :String :doc "A test request param"}}
         :req {:query-params {"q1" ["${q1}" :required]}}
         :rsp {:200 {} :403 {}}
@@ -201,7 +208,6 @@
     }
     "auth" {
       :get {
-        :types {:Token "[0-9a-zA-Z0-9]{15}"}
         :vars {"bearerToken" {:type :Token :examples ["08d2301e-ee81-4654-b448-0636f454612a"]}}
         :req {:headers {"Authorization" ["Bearer ${bearerToken}" :required]}}
         :rsp {:200 {} :401 {} :403 {}}
@@ -255,7 +261,7 @@
 
 ;; invalid auth header - sim changes 400 to 403 when auth header is invalid
 (expect {:status 403 :headers {"Access-Control-Allow-Origin" "*"}  :body nil}
-        (sim-rsp (req :get "/sample/auth" {"Authorization" "Bearer xxx"} body nil) cdx-5 sim-2))
+        (sim-rsp (req :get "/sample/auth" {"Authorization" "Bearer ***"} body nil) cdx-5 sim-2))
 
 (expect {:status 200 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
         (sim-rsp (req :get "/sample/auth" {"Authorization" "Bearer abcdefghicklmno"} body nil) cdx-5 sim-2))
@@ -263,11 +269,10 @@
 ;; matrix-parameter sim extension
 
 (def cdx-6 {
+  :includes ["test/resources/defaults.edn"]
   "gu" {
     "groups${;groupFilter}" {
       :get {
-        :types {
-          :String "[a-zA-Z0-9]+"}
         :vars {
           "groupId" {:type :Int, :doc "Group Id"},
           "city" {:type :String, :doc "City"},
@@ -300,10 +305,10 @@
 ;; Input as output tests
 
 (def cdx-7 {
+  :includes ["test/resources/defaults.edn"]
   "sample" {
     "inputs${;inputFilter}/${pathPlaceholder}/form" {
       :post {
-        :types {:Token "[a-z]{3}" :String "[a-zA-Z0-9]+"}
         :vars {"pathPlaceholder" {:type :Long}
                "headerPlaceholder1" {:type :Token}
                "headerPlaceholder2" {:type :Token}
@@ -320,7 +325,6 @@
     }
     "inputs${;inputFilter}/${pathPlaceholder}/body" {
       :post {
-        :types {:Token "[a-z]{3}" :String "[a-zA-Z0-9]+"}
         :vars {"pathPlaceholder" {:type :Long}
                "headerPlaceholder1" {:type :Token}
                "headerPlaceholder2" {:type :Token}
