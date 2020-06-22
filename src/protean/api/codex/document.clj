@@ -8,12 +8,12 @@
 (defn to-seq
   "creates a sequence (for now aka 'tree' - needs renaming) that can be
    traversed to resolve required references in scope"
-  [codices svc path method]
-  [(get-in codices [svc path method])
-   (get-in codices [svc path])
-   (get-in codices [svc])
-   (get-in codices [method])
-   codices])
+  [codex svc path method]
+  [(get-in codex [svc path method])
+   (get-in codex [svc path])
+   (get-in codex [svc])
+   (get-in codex [method])
+   codex])
 
 (defn get-in-tree
   "Extracts nested values taking into account tree inheritance."
@@ -22,8 +22,6 @@
     (if (some map? xs)
       (u/remove-vals (into {} (reverse xs)) #(= % :remove))
       (first xs))))
-
-(defn service [tree] (ffirst (filter #(= (type (key %)) String) tree)))
 
 (defn get-path-locations
   "Returns all locations that correspond to a relative path, provided a codex-dir"
@@ -109,11 +107,11 @@
          (codex-rsp-hdrs rsp-code tree)))
 
 (defn status-matching [tree f-e]
- (->> (get-in-tree tree [:rsp])
-      (filter (fn [[k _]] (re-matches f-e (name k))))
-      ; includes default headers, content type + unapply param-fix
-      (map (fn [[k v]] [k (assoc v :headers (u/update-vals (rsp-hdrs k tree) first))]))))
+  (->> (get-in-tree tree [:rsp])
+       (filter (fn [[k _]] (re-matches f-e (name k))))
+       ; includes default headers, content type + unapply param-fix
+       (map (fn [[k v]] [k (assoc v :headers (u/update-vals (rsp-hdrs k tree) first))]))))
 
-(defn success-status [tree] (sort-by :status (status-matching tree #"[123]\d\d")))
+(defn success-status [tree] (sort (status-matching tree #"[123]\d\d")))
 
-(defn error-status [tree] (sort-by :status (status-matching tree #"[45]\d\d")))
+(defn error-status [tree] (sort (status-matching tree #"[45]\d\d")))

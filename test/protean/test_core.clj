@@ -2,27 +2,24 @@
   (:require [clojure.java.io :refer [file]]
             [clojure.string :as s]
             [protean.core :as core]
-            [protean.api.protocol.http :as h]
             [protean.api.codex.reader :as r]
+            [protean.api.protocol.http :as h]
+            [protean.api.transformation.paths :as p]
             [expectations :refer :all]
             [me.rossputin.diskops :as dsk]))
 
 (defn- sim-rsp
-  [req cdx sim]
-  (println "\n--------------------------test-sim-rsp--------------------------")
-  (println req)
-  (let [{:keys [request-method uri query-params form-params]} req
-        r (core/sim-rsp (dsk/pwd) req cdx (list sim))]
-    (println "request with"
-             "\n    method:" request-method
-             "\n    uri:" uri
-             "\n    query-params:" query-params
-             "\n    form-params:" form-params
-             "\nresponded with"
-             "\n    status:" (:status r)
-             "\n    headers:" (:headers r)
-             "\n    body:" (:body r))
-    r))
+  [req raw-cdx sim]
+  (let [{:keys [request-method uri query-string form-params]} req
+        _ (println "\nTest sim-rsp" request-method (str uri query-string) "responded with")
+        f (file "/tmp" "protean-api-test_core.cod.edn")
+        _ (spit f (str raw-cdx))
+        cdx (r/read-codex (dsk/pwd) f)
+        rsp (core/sim-rsp (dsk/pwd) req (p/paths [cdx]) (list sim))]
+    (println "  status:" (:status rsp)
+             "\n  headers:" (:headers rsp)
+             "\n  body:" (:body rsp))
+    rsp))
 
 (def json-hdrs {"Access-Control-Allow-Origin" "*"
                 "Content-Type" "application/json; charset=utf-8"})
@@ -49,7 +46,8 @@
       :character-encoding nil
       :uri uri
       :server-name "localhost"
-      :query-string nil
+      :query-string (when (not-empty qps)
+                      (str "&" (s/join "?" (for [[k v] qps] (str k "=" v)))))
       :body b
       :scheme :http
       :request-method m
@@ -64,17 +62,18 @@
 ;; =============================================================================
 
 (def cdx-1 {
+  :includes ["test/resources/defaults.edn"]
   "sample" {
     "simple" {
-      :get [{:rsp {:200 {}}}]
-      :head [{:rsp {:200 {:headers {"token" "aGVsbG8gc2FpbG9y"}}}}]
-      :put [{:rsp {:204 {}}}]
-      :post [{:rsp {:201 {:headers {"Location" "over here"}}}}]
-      :delete [{:rsp {:204 {}}}]
-      :patch [{
+      :get {:rsp {:200 {}}}
+      :head {:rsp {:200 {:headers {"token" "aGVsbG8gc2FpbG9y"}}}}
+      :put {:rsp {:204 {}}}
+      :post {:rsp {:201 {:headers {"Location" "over here"}}}}
+      :delete {:rsp {:204 {}}}
+      :patch {
         :req {:headers {"Content-Type" ["application/json-patch+json" :required]}}
         :rsp {:204 {}}
-      }]
+      }
     }
   }
 })
@@ -116,24 +115,11 @@
 ;; =============================================================================
 
 (def cdx-2 {
+  :includes ["test/resources/defaults.edn"]
   "sample" {
     "simple/${thingId}" {
-      :get [
-        {:rsp {:200 {}}}
-        {:get {:rsp {:200 {}}}}
-        {
-          "simple/${thingId}" {:get {:rsp {:200 {}}}},
-          :vars {"thingId" {:doc "Id of thing", :type :Int}}
-        }
-        {:rsp {:200 {:doc "OK"}}}
-        {:get {:rsp {:200 {:doc "OK"}}},
-         :default-content-type "application/json; charset=utf-8",
-         "sample" {
-           "simple/${thingId}" {:get {:rsp {:200 {}}}},
-           :vars {"thingId" {:doc "Id of thing", :type :Int}}
-         }
-        }
-      ]
+      :vars {"thingId" {:doc "Id of thing", :type :Int}}
+      :get {:rsp {:200 {}}}
     }
   }
 })
@@ -150,15 +136,15 @@
 ;; =============================================================================
 
 (def cdx-3 {
+  :includes ["test/resources/defaults.edn"]
   "sample" {
     "simple" {
-      :get [{
+      :get {
         :validate? true
-        :types {:String "[a-zA-Z0-9]+"}
         :vars {"q1" {:type :String :doc "A test request param"}}
         :req {:query-params {"q1" ["${q1}" :required]}}
         :rsp {:200 {}}
-      }]
+      }
     }
   }
 })
@@ -173,15 +159,19 @@
 ;; Sim extension
 ;; =============================================================================
 
+(def cdx-4 {
+  "sample" {
+    "simple" {:get {:rsp {:200 {} :501 {}}}}}
+})
+
 ;; defines a 400 response
 (def sims (clojure.main/load-script "test/resources/simext-simple.sim.edn"))
 
 ;; test we get a protean error 500 if response breaks codex contract
 ;; in this case we test against a codex which does not contain a 400 response
-(let [cdx (r/read-codex (dsk/pwd) (file "test/resources/simext-simple.edn"))]
-  (expect {:status 500 :headers {"Access-Control-Allow-Origin" "*"
-                                 "Protean-error" "Error in sim"}}
-          (sim-rsp get-sample-simple cdx sims)))
+(expect {:status 500 :headers {"Access-Control-Allow-Origin" "*"
+                               "Protean-error" "Error in sim"}}
+        (sim-rsp get-sample-simple cdx-4 sims))
 
 
 ;; validating sim extension
@@ -189,10 +179,10 @@
 (def sim-2 (clojure.main/load-script "test/resources/simext-simple-validate.sim.edn"))
 
 (def cdx-5 {
+  :includes ["test/resources/defaults.edn"]
   "sample" {
     "simple" {
-      :get [{
-        :types {:String "[a-zA-Z0-9]+"}
+      :get {
         :vars {"q1" {:type :String}
                "q2" {:type :Int}
                "q3" {:type :Int}}
@@ -200,31 +190,28 @@
                              "q2" ["${q2}" :optional]
                              "q3" ["${q3}" :optional :multiple]}}
         :rsp {:200 {} :400 {:headers {"Content-Type" "application/json; charset=utf-8"}}}
-      }]
+      }
     }
     "bespoke" {
-      :get [{
-        :types {:String "[a-zA-Z0-9]+"}
+      :get {
         :vars {"q1" {:type :String :doc "A test request param"}}
         :req {:query-params {"q1" ["${q1}" :required]}}
         :rsp {:200 {} :403 {}}
-      }]
+      }
     }
     "override" {
-      :get [{
-        :types {:String "[a-zA-Z0-9]+"}
+      :get {
         :vars {"q1" {:type :String :doc "A test request param"}}
         :req {:query-params {"q1" ["${q1}" :required]}}
         :rsp {:200 {} :403 {}}
-      }]
+      }
     }
     "auth" {
-      :get [{
-        :types {:Token "[0-9a-zA-Z0-9]{15}"}
+      :get {
         :vars {"bearerToken" {:type :Token :examples ["08d2301e-ee81-4654-b448-0636f454612a"]}}
         :req {:headers {"Authorization" ["Bearer ${bearerToken}" :required]}}
         :rsp {:200 {} :401 {} :403 {}}
-      }]
+      }
     }
   }
 })
@@ -274,7 +261,7 @@
 
 ;; invalid auth header - sim changes 400 to 403 when auth header is invalid
 (expect {:status 403 :headers {"Access-Control-Allow-Origin" "*"}  :body nil}
-        (sim-rsp (req :get "/sample/auth" {"Authorization" "Bearer xxx"} body nil) cdx-5 sim-2))
+        (sim-rsp (req :get "/sample/auth" {"Authorization" "Bearer ***"} body nil) cdx-5 sim-2))
 
 (expect {:status 200 :headers {"Access-Control-Allow-Origin" "*"} :body nil}
         (sim-rsp (req :get "/sample/auth" {"Authorization" "Bearer abcdefghicklmno"} body nil) cdx-5 sim-2))
@@ -282,11 +269,10 @@
 ;; matrix-parameter sim extension
 
 (def cdx-6 {
+  :includes ["test/resources/defaults.edn"]
   "gu" {
     "groups${;groupFilter}" {
-      :get [{
-        :types {
-          :String "[a-zA-Z0-9]+"}
+      :get {
         :vars {
           "groupId" {:type :Int, :doc "Group Id"},
           "city" {:type :String, :doc "City"},
@@ -300,7 +286,7 @@
           :200 {:headers {"Content-Type" "application/json; charset=utf-8"}},
           :400 {:headers {"Content-Type" "application/json; charset=utf-8"}}
         }
-      }]
+      }
     }
   }
 })
@@ -319,10 +305,10 @@
 ;; Input as output tests
 
 (def cdx-7 {
+  :includes ["test/resources/defaults.edn"]
   "sample" {
     "inputs${;inputFilter}/${pathPlaceholder}/form" {
-      :post [{
-        :types {:Token "[a-z]{3}" :String "[a-zA-Z0-9]+"}
+      :post {
         :vars {"pathPlaceholder" {:type :Long}
                "headerPlaceholder1" {:type :Token}
                "headerPlaceholder2" {:type :Token}
@@ -335,11 +321,10 @@
               :form-params {"f" ["${formPlaceholder}" :required]}}
         :rsp {:200 {:body-examples ["test/resources/responses/output-form.json"]
                     :headers {"location" "outputs/${pathPlaceholder}/${headerPlaceholder1}"}}}
-      }]
+      }
     }
     "inputs${;inputFilter}/${pathPlaceholder}/body" {
-      :post [{
-        :types {:Token "[a-z]{3}" :String "[a-zA-Z0-9]+"}
+      :post {
         :vars {"pathPlaceholder" {:type :Long}
                "headerPlaceholder1" {:type :Token}
                "headerPlaceholder2" {:type :Token}
@@ -352,7 +337,7 @@
               :body-examples ["test/resources/requests/input-body.json"]}
         :rsp {:200 {:body-examples ["test/resources/responses/output-body.json"]
                     :headers {"location" "outputs/${pathPlaceholder}/${headerPlaceholder1}"}}}
-      }]
+      }
     }
   }
 })

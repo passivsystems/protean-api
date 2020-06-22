@@ -140,10 +140,8 @@
 
 (defn response-bag
   "A bag of placeholder values from the request"
-  [{:keys [status]}
-   {:keys [tree headers path-params matrix-params query-params form-params response]}]
-  (let [rsp (u/find #(= (:status %) status) (concat (:success response) (:error response)))
-        rsp-holder (map-invert (into {} (holder? rsp)))]
+  [rsp {:keys [protean-home tree headers path-params matrix-params query-params form-params]}]
+  (let [rsp-holder (map-invert (into {} (holder? rsp)))]
     (into {}
       (concat (map (fn [[k v]] (p-val (rsp-holder k) v)) path-params)
               (map (fn [[k [v]]] (p-val v (headers (s/lower-case k)))) (d/req-hdrs tree))

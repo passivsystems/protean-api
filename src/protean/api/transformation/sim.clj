@@ -103,32 +103,39 @@
 ;; Responses
 ;; =============================================================================
 
-(defn success-responses
-  "Note here request is a request with tree and other data blended in"
-  [{:keys [response]}] (:success response))
+(defn success-codes
+  [{:keys [tree]}]
+  (for [[k _] (d/success-status tree)] (read-string (name k))))
 
-(defn error-responses
-  "Note here request is a request with tree and other data blended in"
-  [{:keys [response]}] (:error response))
+(defn error-codes
+  [{:keys [tree]}]
+  (for [[k _] (d/error-status tree)] (read-string (name k))))
 
-(defn responses [request]
-  (concat (success-responses request) (error-responses request)))
+(defn- build-rsp
+  ([{:keys [tree] :as request} status custom-body]
+  (when-let [rsp (d/get-in-tree tree [:rsp (keyword (str status))])]
+    (let [{:keys [body-examples headers]} rsp
+          body (cond
+                 (some? custom-body) custom-body
+                 (first body-examples) (slurp (find-path request (first body-examples)))
+                 :else  nil)]
+      {:status status :headers headers :body body}))))
 
 (defn response
-  ([request status]
-    (let [rs (responses request)]
-      (or (u/find #(= (:status %) status) rs)
-          (throw (IllegalArgumentException. (str
-            "Status: " status " not found. Codex responses are: "
-            (s/join ", " (map :status rs))))))))
-  ([request status body] (assoc (response request status) :body body)))
+  ([request status] (response request status nil))
+  ([request status body] (or (build-rsp request status body)
+                             (throw (IllegalArgumentException. (str
+                               "Status: " status " not found. Codex statuses are: "
+                               (s/join ", " (concat (success-codes request)
+                                                    (error-codes request)))))))))
 
 ;; =============================================================================
 ;; Validation of Request by Codex Specification
 ;; =============================================================================
 
-(defn- body-errors [request protean-home tree]
-  (let [schema (d/to-path protean-home (d/get-in-tree tree [:req :body-schema]) tree)
+(defn- body-errors
+  [{:keys [tree] :as request}]
+  (let [schema (find-path request (d/get-in-tree tree [:req :body-schema]))
         codex-body (d/req-body tree)]
     (v/validate-body request schema codex-body)))
 
@@ -140,7 +147,7 @@
              :query-errors (v/validate-query-params request)
              :form-errors (v/validate-form-params request)
              :matrix-errors (v/validate-matrix-params request)
-             :body-errors (body-errors request protean-home tree)}
+             :body-errors (body-errors request)}
         errors (into {} (remove (fn [[k v]] (nil? v)) raw))]
     (when-not (empty? errors)
       (log-warn (s/join "," errors))
