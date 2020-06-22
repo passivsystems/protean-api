@@ -23,8 +23,6 @@
       (u/remove-vals (into {} (reverse xs)) #(= % :remove))
       (first xs))))
 
-(defn service [tree] (ffirst (filter #(= (type (key %)) String) tree)))
-
 (defn get-path-locations
   "Returns all locations that correspond to a relative path, provided a codex-dir"
   [protean-home path codex-dir]

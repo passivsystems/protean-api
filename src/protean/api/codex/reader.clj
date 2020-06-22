@@ -10,6 +10,16 @@
          (re-seq #"\"[A-Za-z0-9-_~#\*;=\[\]\(\)\.\$\{\}/]+\"")
          (map #(s/replace % (re-pattern "\"") "")))))
 
+(defn services
+  ([tree c]
+    (->> (services c)
+         (map (fn [svc] {svc (s/index-of tree (str "\"" svc "\""))}))
+         (into {})
+         (sort-by val)
+         (map first)))
+  ([c]
+    (sort (remove keyword? (keys c)))))
+
 (defn- read-codex-part
   "will read the codex eden file, merging with any referenced files"
   [protean-home codex-dir file]
@@ -21,9 +31,9 @@
   (let [afile (if (string? file) (d/to-path-dir protean-home file codex-dir) file)
         file-content (slurp afile)
         read (edn/read-string file-content)
-        tree (apply merge-with merge (map merge-includes read))]
-    (assoc tree :ordered-resources (when-let [svc (d/service tree)]
-                                     (ordered-resources file-content svc)))))
+        tree (apply merge-with merge (map merge-includes read))
+        rs (map #(ordered-resources file-content %) (services file-content tree))]
+    (assoc tree :ordered-resources (flatten rs))))
 
 (defn read-codex
   "will read the codex eden file, merging with any referenced files"

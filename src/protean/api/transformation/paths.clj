@@ -3,7 +3,8 @@
   (:require [clojure.string :as s]
             [clojure.core.reducers :as reducers]
             [protean.api.codex.document :as d]
-            [protean.api.protocol.http :as h]))
+            [protean.api.protocol.http :as h]
+            [protean.api.codex.reader :as r]))
 
 ;; =============================================================================
 ;; Helper functions
@@ -73,7 +74,7 @@
   (reducers/reduce
     (fn [xs {:keys [svc path method tree]}] (assoc-in xs [svc path method] tree))
     {}
-    (flatten (mapv #(services % (seq (remove keyword? (keys %)))) codices))))
+    (flatten (mapv #(services % (r/services %)) codices))))
 
 (defn uri [host port svc path]
   (if (= path "/")
