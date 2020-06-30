@@ -1,4 +1,4 @@
-(defproject protean-api "0.14.0"
+(defproject protean-api "0.14.1"
   :description "Protean API."
   :url "http://github.com/passivsystems/protean-api"
   :license {:name "Apache License v2.0"
@@ -8,7 +8,7 @@
                  [org.clojure/data.xml "0.0.8"]
                  [cheshire "5.10.0"]
                  [clj-http "3.10.1"]
-                 [org.tcrawley/dynapath "1.1.0"]
+                 [org.tcrawley/dynapath "0.2.5"] ;; Fixes Could not find a suitable classloader to modify from clojure.lang.LazySeq
                  [com.cemerick/pomegranate "1.1.0"]
                  [com.gfredericks/test.chuck "0.2.9"]
                  [com.github.java-json-tools/json-schema-validator "2.2.14"]
